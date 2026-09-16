@@ -5,10 +5,16 @@
   var getSettings = SpeeVid.storage.getSettings;
   var getSiteSpeed = SpeeVid.storage.getSiteSpeed;
   var setSiteSpeed = SpeeVid.storage.setSiteSpeed;
+  var getGlobalSpeed = SpeeVid.storage.getGlobalSpeed;
+  var setGlobalSpeed = SpeeVid.storage.setGlobalSpeed;
+  var onGlobalSpeedChanged = SpeeVid.storage.onGlobalSpeedChanged;
   var onSettingsChanged = SpeeVid.storage.onSettingsChanged;
   var MESSAGE_TYPES = SpeeVid.messages.MESSAGE_TYPES;
 
   var HOSTNAME = location.hostname || 'local-file';
+  // Only the top frame should speak for the tab's toolbar badge — otherwise
+  // an unrelated ad iframe with its own <video> could overwrite it.
+  var IS_TOP_FRAME = window.top === window.self;
 
   var formatSpeed = SpeeVid.speedUtils.formatSpeed;
   var PRESETS = SpeeVid.speedUtils.PRESETS;
@@ -19,19 +25,50 @@
   var rafId = null;
   var PERSIST_DEBOUNCE_MS = 300;
   var persistTimer = null;
+  var boundVideos = new WeakSet();
 
   var state = {
     speed: 1,
     floatingEnabled: true,
     shortcutsEnabled: true,
+    keyBindings: { increase: 's', decrease: 'd', reset: 'a', custom: 'q' },
+    customSpeed: 2,
+    syncAllTabs: false,
+    disabled: false,
   };
+
+  function sendBadgeUpdate() {
+    if (!IS_TOP_FRAME) return;
+    var text = !state.disabled && state.speed !== 1 ? formatSpeed(state.speed).replace('x', '') : '';
+    chrome.runtime.sendMessage({ type: MESSAGE_TYPES.SPEED_CHANGED, text: text }, function () {
+      void chrome.runtime.lastError;
+    });
+  }
 
   function scanVideos() {
     return Array.prototype.slice.call(document.querySelectorAll('video'));
   }
 
+  // Sites often reset playbackRate to 1 themselves when a new source loads
+  // into an existing <video> element (e.g. autoplay/next-episode on an SPA,
+  // which reuses the element so our mutation observer never fires). Watching
+  // these events lets us reassert our speed instead of silently losing it.
+  function bindVideo(video) {
+    if (boundVideos.has(video)) return;
+    boundVideos.add(video);
+    ['loadedmetadata', 'playing', 'ratechange'].forEach(function (evt) {
+      video.addEventListener(evt, function () {
+        if (video.playbackRate !== state.speed) {
+          video.playbackRate = state.speed;
+        }
+      });
+    });
+  }
+
   function applySpeedToAllVideos() {
+    if (state.disabled) return;
     scanVideos().forEach(function (video) {
+      bindVideo(video);
       video.playbackRate = state.speed;
     });
   }
@@ -44,6 +81,7 @@
       // (e.g. an unrelated ad iframe that received the SET_SPEED broadcast).
       if (scanVideos().length === 0) return;
       setSiteSpeed(HOSTNAME, state.speed);
+      if (state.syncAllTabs) setGlobalSpeed(state.speed);
     }, PERSIST_DEBOUNCE_MS);
   }
 
@@ -52,6 +90,7 @@
     state.speed = clampSpeed(rawSpeed);
     applySpeedToAllVideos();
     updateAllOverlays();
+    sendBadgeUpdate();
     if (persist) {
       schedulePersist();
     }
@@ -63,11 +102,12 @@
         speed: state.speed,
         videoCount: scanVideos().length,
         floatingEnabled: state.floatingEnabled,
+        disabled: state.disabled,
       });
       return false;
     }
     if (message.type === MESSAGE_TYPES.SET_SPEED) {
-      setSpeed(message.speed);
+      if (!state.disabled) setSpeed(message.speed);
       sendResponse({ speed: state.speed });
       return false;
     }
@@ -122,18 +162,22 @@
   }
 
   function handleKeydown(event) {
+    if (state.disabled) return;
     if (!state.shortcutsEnabled) return;
     if (event.ctrlKey || event.altKey || event.metaKey) return;
     if (isEditableTarget(getRealTarget(event))) return;
     if (scanVideos().length === 0) return;
 
     var key = event.key.toLowerCase();
-    if (key === 's') {
+    var bindings = state.keyBindings;
+    if (key === bindings.increase) {
       setSpeed(state.speed + 0.1);
-    } else if (key === 'd') {
+    } else if (key === bindings.decrease) {
       setSpeed(state.speed - 0.1);
-    } else if (key === 'a') {
+    } else if (key === bindings.reset) {
       setSpeed(1);
+    } else if (key === bindings.custom) {
+      setSpeed(state.customSpeed);
     }
   }
 
@@ -157,7 +201,7 @@
       '.presets button:hover { background: var(--sv-accent); color: #fff; border-color: var(--sv-accent); }' +
       '</style>' +
       '<div class="root">' +
-      '<div class="panel"><div class="panel-inner"><input type="range" class="slider" min="0.25" max="3" step="0.05" /><div class="presets"></div></div></div>' +
+      '<div class="panel"><div class="panel-inner"><input type="range" class="slider" min="0.25" max="16" step="0.05" /><div class="presets"></div></div></div>' +
       '<div class="badge"></div>' +
       '</div>'
     );
@@ -282,7 +326,7 @@
   }
 
   function syncOverlaysWithVideos() {
-    if (!state.floatingEnabled) {
+    if (state.disabled || !state.floatingEnabled) {
       destroyAllOverlays();
       return;
     }
@@ -297,18 +341,24 @@
   }
 
   function init() {
-    Promise.all([getSettings(), getSiteSpeed(HOSTNAME)])
+    Promise.all([getSettings(), getSiteSpeed(HOSTNAME), getGlobalSpeed()])
       .then(function (results) {
         var settings = results[0];
         var siteSpeed = results[1];
+        var globalSpeed = results[2];
 
         state.floatingEnabled = settings.floatingEnabled;
         state.shortcutsEnabled = settings.shortcutsEnabled;
-        state.speed = clampSpeed(siteSpeed);
+        state.keyBindings = settings.keyBindings;
+        state.customSpeed = settings.customSpeed;
+        state.syncAllTabs = settings.syncAllTabs;
+        state.disabled = settings.disabledSites.indexOf(HOSTNAME) !== -1;
+        state.speed = clampSpeed(state.syncAllTabs ? globalSpeed : siteSpeed);
 
         applySpeedToAllVideos();
         syncOverlaysWithVideos();
         observeNewVideos();
+        sendBadgeUpdate();
 
         onSettingsChanged(function (changed) {
           if (typeof changed.floatingEnabled === 'boolean') {
@@ -318,6 +368,35 @@
           if (typeof changed.shortcutsEnabled === 'boolean') {
             state.shortcutsEnabled = changed.shortcutsEnabled;
           }
+          if (changed.keyBindings && typeof changed.keyBindings === 'object') {
+            state.keyBindings = changed.keyBindings;
+          }
+          if (typeof changed.customSpeed === 'number') {
+            state.customSpeed = changed.customSpeed;
+          }
+          if (typeof changed.syncAllTabs === 'boolean') {
+            state.syncAllTabs = changed.syncAllTabs;
+          }
+          if (Array.isArray(changed.disabledSites)) {
+            var wasDisabled = state.disabled;
+            state.disabled = changed.disabledSites.indexOf(HOSTNAME) !== -1;
+            if (state.disabled && !wasDisabled) {
+              scanVideos().forEach(function (video) {
+                video.playbackRate = 1;
+              });
+              destroyAllOverlays();
+            } else if (!state.disabled && wasDisabled) {
+              applySpeedToAllVideos();
+              syncOverlaysWithVideos();
+            }
+            if (state.disabled !== wasDisabled) sendBadgeUpdate();
+          }
+        });
+
+        onGlobalSpeedChanged(function (newSpeed) {
+          if (!state.syncAllTabs) return;
+          if (scanVideos().length === 0) return;
+          setSpeed(newSpeed, false);
         });
       })
       .catch(function (err) {

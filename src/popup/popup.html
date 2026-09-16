@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="tr">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="color-scheme" content="light dark" />
@@ -11,36 +11,114 @@
     <header class="app-header">
       <span class="logo-dot"></span>
       <h1>SpeeVid</h1>
+      <button type="button" id="settingsBtn" class="icon-btn" data-i18n-aria="settings" data-i18n-title="settings" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
     </header>
+
+    <label id="siteDisableRow" class="toggle-row site-disable-row" hidden>
+      <span id="siteDisableLabel" data-i18n="disableOnSite">Disable on this site</span>
+      <span class="switch">
+        <input type="checkbox" id="siteDisableToggle" />
+        <span class="slider-switch"></span>
+      </span>
+    </label>
 
     <section id="videoSection" class="section" hidden>
       <div class="speed-display">
         <span id="speedValue">1x</span>
       </div>
-      <input type="range" id="speedSlider" class="slider" min="0.25" max="3" step="0.05" value="1" />
+      <input type="range" id="speedSlider" class="slider" min="0.25" max="16" step="0.05" value="1" />
       <div id="presets" class="presets"></div>
     </section>
 
     <section id="emptySection" class="section empty" hidden>
-      <p>Bu sayfada video bulunamadı.</p>
+      <p data-i18n="emptyVideo">No video found on this page.</p>
     </section>
 
     <section id="unsupportedSection" class="section empty" hidden>
-      <p>Bu sayfada SpeeVid çalışmıyor.</p>
+      <p data-i18n="unsupported">SpeeVid doesn't work on this page.</p>
     </section>
 
-    <footer class="app-footer">
+    <section id="disabledSection" class="section empty" hidden>
+      <p data-i18n="disabledMessage">SpeeVid is disabled on this site.</p>
+    </section>
+
+    <section id="settingsSection" class="section settings" hidden>
+      <button type="button" id="backBtn" class="back-btn">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
+        <span data-i18n="back">Back</span>
+      </button>
+
+      <div class="keybind-row">
+        <span data-i18n="languageLabel">Language</span>
+        <select id="languageSelect" class="lang-select"></select>
+      </div>
+
+      <div class="settings-divider"></div>
+
+      <div class="keybind-row">
+        <span data-i18n="actionIncrease">Speed up</span>
+        <button type="button" class="key-btn" id="keyBtnIncrease" data-action="increase">S</button>
+      </div>
+      <div class="keybind-row">
+        <span data-i18n="actionDecrease">Slow down</span>
+        <button type="button" class="key-btn" id="keyBtnDecrease" data-action="decrease">D</button>
+      </div>
+      <div class="keybind-row">
+        <span data-i18n="actionReset">Reset (1x)</span>
+        <button type="button" class="key-btn" id="keyBtnReset" data-action="reset">A</button>
+      </div>
+      <div class="keybind-row">
+        <span data-i18n="actionCustom">Custom speed</span>
+        <div class="custom-speed-controls">
+          <input type="number" id="customSpeedInput" class="speed-input" min="0.25" max="16" step="0.05" value="2" />
+          <button type="button" class="key-btn" id="keyBtnCustom" data-action="custom">Q</button>
+        </div>
+      </div>
+      <p class="keybind-hint" data-i18n="keybindHint">Click a key to rebind it, then press the new key.</p>
+
+      <div class="settings-divider"></div>
+
+      <div class="section-label" data-i18n="disabledSitesLabel">Disabled sites</div>
+      <div class="disabled-sites-add">
+        <input type="text" id="disabledSiteInput" class="site-input" placeholder="example.com" />
+        <button type="button" id="addDisabledSiteBtn" class="backup-btn" data-i18n="addSite">Add</button>
+      </div>
+      <ul id="disabledSitesList" class="disabled-sites-list"></ul>
+
+      <div class="settings-divider"></div>
+
+      <div class="backup-actions">
+        <button type="button" id="exportBtn" class="backup-btn" data-i18n="exportSettings">Export settings</button>
+        <button type="button" id="importBtn" class="backup-btn" data-i18n="importSettings">Import settings</button>
+        <input type="file" id="importFileInput" accept="application/json" hidden />
+      </div>
+      <p id="backupStatus" class="keybind-hint backup-status" hidden></p>
+    </section>
+
+    <footer id="appFooter" class="app-footer">
       <label class="toggle-row">
-        <span>Video üzerinde kontrolü göster</span>
+        <span data-i18n="toggleFloating">Show on-video control</span>
         <span class="switch">
           <input type="checkbox" id="floatingToggle" />
           <span class="slider-switch"></span>
         </span>
       </label>
       <label class="toggle-row">
-        <span>Klavye kısayollarını etkinleştir</span>
+        <span data-i18n="toggleShortcuts">Enable keyboard shortcuts</span>
         <span class="switch">
           <input type="checkbox" id="shortcutsToggle" />
+          <span class="slider-switch"></span>
+        </span>
+      </label>
+      <label class="toggle-row">
+        <span data-i18n="toggleSyncAllTabs">Apply to all tabs</span>
+        <span class="switch">
+          <input type="checkbox" id="syncAllTabsToggle" />
           <span class="slider-switch"></span>
         </span>
       </label>
@@ -48,6 +126,7 @@
   </div>
 
   <script src="../shared/speed-utils.js"></script>
+  <script src="../shared/i18n.js"></script>
   <script src="../shared/storage-helpers.js"></script>
   <script src="../shared/storage.js"></script>
   <script src="../shared/messages.js"></script>

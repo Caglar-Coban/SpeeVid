@@ -4,7 +4,7 @@ const { clampSpeed, formatSpeed, PRESETS, SPEED_MIN, SPEED_MAX } = require('../s
 
 test('clampSpeed keeps values within bounds', () => {
   assert.equal(clampSpeed(0.05), SPEED_MIN);
-  assert.equal(clampSpeed(10), SPEED_MAX);
+  assert.equal(clampSpeed(20), SPEED_MAX);
   assert.equal(clampSpeed(1.5), 1.5);
 });
 

@@ -2,8 +2,8 @@
   'use strict';
 
   var SPEED_MIN = 0.25;
-  var SPEED_MAX = 3;
-  var PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+  var SPEED_MAX = 16;
+  var PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 8, 16];
 
   function clampSpeed(value) {
     var num = Number(value);

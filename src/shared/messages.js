@@ -4,6 +4,7 @@
   var MESSAGE_TYPES = {
     GET_STATE: 'GET_STATE',
     SET_SPEED: 'SET_SPEED',
+    SPEED_CHANGED: 'SPEED_CHANGED',
   };
 
   root.SpeeVid = root.SpeeVid || {};

@@ -2,7 +2,21 @@
   'use strict';
 
   var helpers = root.SpeeVid && root.SpeeVid.storageHelpers;
-  var DEFAULT_SETTINGS = { floatingEnabled: true, shortcutsEnabled: true };
+  var i18n = root.SpeeVid && root.SpeeVid.i18n;
+  var speedUtils = root.SpeeVid && root.SpeeVid.speedUtils;
+  var DEFAULT_SETTINGS = {
+    floatingEnabled: true,
+    shortcutsEnabled: true,
+    keyBindings: helpers.DEFAULT_KEY_BINDINGS,
+    language: i18n.DEFAULT_LANGUAGE,
+    customSpeed: helpers.DEFAULT_CUSTOM_SPEED,
+    syncAllTabs: false,
+    disabledSites: [],
+  };
+
+  function safeSpeed(value, fallback) {
+    return typeof value === 'number' && !Number.isNaN(value) ? speedUtils.clampSpeed(value) : fallback;
+  }
 
   function getSettings() {
     return new Promise(function (resolve) {
@@ -45,6 +59,14 @@
     });
   }
 
+  function getSiteSpeedsMap() {
+    return new Promise(function (resolve) {
+      chrome.storage.local.get({ siteSpeeds: {} }, function (result) {
+        resolve(toSiteSpeedsObject(result && result.siteSpeeds));
+      });
+    });
+  }
+
   function onSettingsChanged(callback) {
     chrome.storage.onChanged.addListener(function (changes, areaName) {
       if (areaName !== 'sync') return;
@@ -60,6 +82,52 @@
     });
   }
 
+  // Shared across all tabs when "apply to all tabs" is on. Kept in `local`
+  // (not `sync`) since speed changes can fire much more often than sync's
+  // write-rate quota allows.
+  function getGlobalSpeed() {
+    return new Promise(function (resolve) {
+      chrome.storage.local.get({ globalSpeed: 1 }, function (result) {
+        resolve(result.globalSpeed);
+      });
+    });
+  }
+
+  function setGlobalSpeed(speed) {
+    return new Promise(function (resolve) {
+      chrome.storage.local.set({ globalSpeed: speed }, resolve);
+    });
+  }
+
+  function onGlobalSpeedChanged(callback) {
+    chrome.storage.onChanged.addListener(function (changes, areaName) {
+      if (areaName !== 'local' || !changes.globalSpeed) return;
+      callback(changes.globalSpeed.newValue);
+    });
+  }
+
+  // Restores a previously exported backup. Every value is re-validated
+  // through the same merge/clamp logic as normal writes, so a hand-edited or
+  // stale-format file can never leave storage in an inconsistent state.
+  function importSettings(raw) {
+    raw = raw && typeof raw === 'object' ? raw : {};
+    var sanitizedSettings = helpers.mergeSettings(raw.settings);
+    var rawSiteSpeeds = toSiteSpeedsObject(raw.siteSpeeds);
+    var siteSpeeds = {};
+    Object.keys(rawSiteSpeeds).forEach(function (key) {
+      siteSpeeds[key] = safeSpeed(rawSiteSpeeds[key], 1);
+    });
+    var globalSpeed = safeSpeed(raw.globalSpeed, 1);
+
+    return new Promise(function (resolve) {
+      chrome.storage.sync.set(sanitizedSettings, function () {
+        chrome.storage.local.set({ siteSpeeds: siteSpeeds, globalSpeed: globalSpeed }, function () {
+          resolve(sanitizedSettings);
+        });
+      });
+    });
+  }
+
   root.SpeeVid = root.SpeeVid || {};
   root.SpeeVid.storage = {
     DEFAULT_SETTINGS: DEFAULT_SETTINGS,
@@ -67,6 +135,11 @@
     setSetting: setSetting,
     getSiteSpeed: getSiteSpeed,
     setSiteSpeed: setSiteSpeed,
+    getSiteSpeedsMap: getSiteSpeedsMap,
     onSettingsChanged: onSettingsChanged,
+    getGlobalSpeed: getGlobalSpeed,
+    setGlobalSpeed: setGlobalSpeed,
+    onGlobalSpeedChanged: onGlobalSpeedChanged,
+    importSettings: importSettings,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

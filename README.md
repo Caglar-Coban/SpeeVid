@@ -4,10 +4,14 @@ Herhangi bir sitede video oynatma hızını kontrol etmenizi sağlayan bir Chrom
 
 ## Özellikler
 
-- Her sitedeki HTML5 videolarında çalışır.
+- Her sitedeki HTML5 videolarında çalışır, 0.25x-16x arası.
 - Video üzerinde beliren yüzen hız kontrolü (isteğe bağlı, ayarlardan kapatılabilir).
-- Klavye kısayolları: `S` hızlandır, `D` yavaşlat, `A` sıfırla (1x).
-- Her site için son kullanılan hızı hatırlar.
+- Klavye kısayolları: varsayılan olarak `S` hızlandır, `D` yavaşlat, `A` sıfırla (1x), `Q` özel hıza atla — ayarlar ekranından yeniden atanabilir. Özel hızın kendisi de (0.25x-16x arası) ayarlardan değiştirilebilir.
+- Popup arayüzü 13 dilde kullanılabilir (varsayılan: İngilizce), ayarlar ekranındaki dil seçiciden değiştirilir.
+- Her site için son kullanılan hızı hatırlar; "Tüm sekmelere uygula" açıksa bunun yerine tek bir hız tüm açık sekmelerde anlık senkronize edilir.
+- Toolbar ikonunda güncel hızı rozet olarak gösterir (1x'te rozet gizlenir).
+- Site bazında tamamen devre dışı bırakılabilir (popup'ın üstündeki anahtar).
+- Tüm ayarlar, kısayollar ve hatırlanan hızlar bir JSON dosyasına yedeklenip başka bir cihaza geri yüklenebilir (ayarlar ekranı).
 - Açık/koyu sistem temasına otomatik uyum.
 
 ## Kurulum (geliştirici modu)
