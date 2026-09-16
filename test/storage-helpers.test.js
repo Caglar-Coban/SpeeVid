@@ -8,6 +8,8 @@ const {
   mergeCustomSpeed,
   mergeSyncAllTabs,
   mergeDisabledSites,
+  mergeOverlayPosition,
+  mergeOverlayAutoHide,
 } = require('../src/shared/storage-helpers.js');
 
 const DEFAULT_KEY_BINDINGS = { increase: 's', decrease: 'd', reset: 'a', custom: 'q' };
@@ -30,6 +32,8 @@ test('mergeSettings applies defaults for missing keys', () => {
     customSpeed: 2,
     syncAllTabs: false,
     disabledSites: [],
+    overlayPosition: 'bottom-right',
+    overlayAutoHide: false,
   });
 });
 
@@ -44,6 +48,8 @@ test('mergeSettings preserves explicit false values', () => {
       customSpeed: 2,
       syncAllTabs: false,
       disabledSites: [],
+      overlayPosition: 'bottom-right',
+      overlayAutoHide: false,
     }
   );
 });
@@ -104,4 +110,24 @@ test('mergeDisabledSites lowercases entries, drops non-strings, and de-duplicate
     mergeDisabledSites(['YouTube.com', 'vimeo.com', 'youtube.com', 42, '']),
     ['youtube.com', 'vimeo.com']
   );
+});
+
+test('mergeOverlayPosition defaults to bottom-right for missing/invalid values', () => {
+  assert.equal(mergeOverlayPosition(undefined), 'bottom-right');
+  assert.equal(mergeOverlayPosition('middle'), 'bottom-right');
+});
+
+test('mergeOverlayPosition preserves a supported corner', () => {
+  assert.equal(mergeOverlayPosition('top-left'), 'top-left');
+  assert.equal(mergeOverlayPosition('bottom-left'), 'bottom-left');
+});
+
+test('mergeOverlayAutoHide defaults to false for missing/invalid values', () => {
+  assert.equal(mergeOverlayAutoHide(undefined), false);
+  assert.equal(mergeOverlayAutoHide('yes'), false);
+});
+
+test('mergeOverlayAutoHide preserves an explicit boolean', () => {
+  assert.equal(mergeOverlayAutoHide(true), true);
+  assert.equal(mergeOverlayAutoHide(false), false);
 });

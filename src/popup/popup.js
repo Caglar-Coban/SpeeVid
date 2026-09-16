@@ -24,6 +24,8 @@
   var settingsBtn = document.getElementById('settingsBtn');
   var backBtn = document.getElementById('backBtn');
   var languageSelect = document.getElementById('languageSelect');
+  var overlayPositionSelect = document.getElementById('overlayPositionSelect');
+  var overlayAutoHideToggle = document.getElementById('overlayAutoHideToggle');
   var customSpeedInput = document.getElementById('customSpeedInput');
   var siteDisableRow = document.getElementById('siteDisableRow');
   var siteDisableToggle = document.getElementById('siteDisableToggle');
@@ -99,6 +101,14 @@
 
   syncAllTabsToggle.addEventListener('change', function (event) {
     setSetting('syncAllTabs', event.target.checked);
+  });
+
+  overlayPositionSelect.addEventListener('change', function (event) {
+    setSetting('overlayPosition', event.target.value);
+  });
+
+  overlayAutoHideToggle.addEventListener('change', function (event) {
+    setSetting('overlayAutoHide', event.target.checked);
   });
 
   customSpeedInput.addEventListener('change', function (event) {
@@ -326,6 +336,8 @@
     floatingToggle.checked = settings.floatingEnabled;
     shortcutsToggle.checked = settings.shortcutsEnabled;
     syncAllTabsToggle.checked = settings.syncAllTabs;
+    overlayPositionSelect.value = settings.overlayPosition;
+    overlayAutoHideToggle.checked = settings.overlayAutoHide;
     customSpeedInput.value = settings.customSpeed;
     keyBindings = settings.keyBindings;
     disabledSites = settings.disabledSites;

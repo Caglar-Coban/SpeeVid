@@ -7,6 +7,8 @@
 
   var DEFAULT_KEY_BINDINGS = { increase: 's', decrease: 'd', reset: 'a', custom: 'q' };
   var DEFAULT_CUSTOM_SPEED = 2;
+  var OVERLAY_POSITIONS = ['bottom-right', 'bottom-left', 'top-right', 'top-left'];
+  var DEFAULT_OVERLAY_POSITION = 'bottom-right';
 
   function buildSiteSpeedKey(hostname) {
     return (hostname || 'unknown').toLowerCase();
@@ -34,6 +36,14 @@
     return typeof stored === 'boolean' ? stored : false;
   }
 
+  function mergeOverlayPosition(stored) {
+    return typeof stored === 'string' && OVERLAY_POSITIONS.indexOf(stored) !== -1 ? stored : DEFAULT_OVERLAY_POSITION;
+  }
+
+  function mergeOverlayAutoHide(stored) {
+    return typeof stored === 'boolean' ? stored : false;
+  }
+
   function mergeDisabledSites(stored) {
     if (!Array.isArray(stored)) return [];
     var seen = {};
@@ -58,18 +68,24 @@
       customSpeed: mergeCustomSpeed(stored.customSpeed),
       syncAllTabs: mergeSyncAllTabs(stored.syncAllTabs),
       disabledSites: mergeDisabledSites(stored.disabledSites),
+      overlayPosition: mergeOverlayPosition(stored.overlayPosition),
+      overlayAutoHide: mergeOverlayAutoHide(stored.overlayAutoHide),
     };
   }
 
   var api = {
     DEFAULT_KEY_BINDINGS: DEFAULT_KEY_BINDINGS,
     DEFAULT_CUSTOM_SPEED: DEFAULT_CUSTOM_SPEED,
+    OVERLAY_POSITIONS: OVERLAY_POSITIONS,
+    DEFAULT_OVERLAY_POSITION: DEFAULT_OVERLAY_POSITION,
     buildSiteSpeedKey: buildSiteSpeedKey,
     mergeKeyBindings: mergeKeyBindings,
     mergeLanguage: mergeLanguage,
     mergeCustomSpeed: mergeCustomSpeed,
     mergeSyncAllTabs: mergeSyncAllTabs,
     mergeDisabledSites: mergeDisabledSites,
+    mergeOverlayPosition: mergeOverlayPosition,
+    mergeOverlayAutoHide: mergeOverlayAutoHide,
     mergeSettings: mergeSettings,
   };
 

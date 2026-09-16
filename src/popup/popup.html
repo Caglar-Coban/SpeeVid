@@ -61,6 +61,25 @@
       <div class="settings-divider"></div>
 
       <div class="keybind-row">
+        <span data-i18n="overlayPositionLabel">Overlay position</span>
+        <select id="overlayPositionSelect" class="lang-select">
+          <option value="bottom-right" data-i18n="positionBottomRight">Bottom right</option>
+          <option value="bottom-left" data-i18n="positionBottomLeft">Bottom left</option>
+          <option value="top-right" data-i18n="positionTopRight">Top right</option>
+          <option value="top-left" data-i18n="positionTopLeft">Top left</option>
+        </select>
+      </div>
+      <label class="keybind-row">
+        <span data-i18n="toggleOverlayAutoHide">Auto-hide overlay</span>
+        <span class="switch">
+          <input type="checkbox" id="overlayAutoHideToggle" />
+          <span class="slider-switch"></span>
+        </span>
+      </label>
+
+      <div class="settings-divider"></div>
+
+      <div class="keybind-row">
         <span data-i18n="actionIncrease">Speed up</span>
         <button type="button" class="key-btn" id="keyBtnIncrease" data-action="increase">S</button>
       </div>

@@ -12,6 +12,8 @@
     customSpeed: helpers.DEFAULT_CUSTOM_SPEED,
     syncAllTabs: false,
     disabledSites: [],
+    overlayPosition: helpers.DEFAULT_OVERLAY_POSITION,
+    overlayAutoHide: false,
   };
 
   function safeSpeed(value, fallback) {
