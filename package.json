@@ -4,6 +4,6 @@
   "private": true,
   "description": "SpeeVid Chrome uzantısı",
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test test/*.test.js"
   }
 }
