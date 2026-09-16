@@ -5,6 +5,12 @@ const path = require('node:path');
 
 const chromeManifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../manifest.json'), 'utf8'));
 const firefoxManifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../manifest.firefox.json'), 'utf8'));
+const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
+
+test('both manifests and package.json agree on the version number', () => {
+  assert.equal(firefoxManifest.version, chromeManifest.version);
+  assert.equal(pkg.version, chromeManifest.version);
+});
 
 test('both manifests declare the same content script files', () => {
   assert.deepEqual(firefoxManifest.content_scripts[0].js, chromeManifest.content_scripts[0].js);
