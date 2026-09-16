@@ -1,0 +1,9 @@
+{
+  "name": "speevid",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SpeeVid Chrome uzantısı",
+  "scripts": {
+    "test": "node --test test/"
+  }
+}
