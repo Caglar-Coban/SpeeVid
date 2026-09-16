@@ -17,6 +17,8 @@
   var speedValueEl = document.getElementById('speedValue');
   var speedSlider = document.getElementById('speedSlider');
   var presetsEl = document.getElementById('presets');
+  var pinSpeedToggle = document.getElementById('pinSpeedToggle');
+  var pinnedSpeedsList = document.getElementById('pinnedSpeedsList');
   var floatingToggle = document.getElementById('floatingToggle');
   var shortcutsToggle = document.getElementById('shortcutsToggle');
   var syncAllTabsToggle = document.getElementById('syncAllTabsToggle');
@@ -77,7 +79,14 @@
     if (activeTabId === null) return;
     chrome.tabs.sendMessage(activeTabId, { type: MESSAGE_TYPES.SET_SPEED, speed: speed }, function (response) {
       if (chrome.runtime.lastError) return;
-      if (response) renderSpeed(response.speed);
+      if (response) {
+        renderSpeed(response.speed);
+        // Pin is "sticky": adjusting the speed while pinned updates the lock
+        // to match, rather than leaving it pointing at a stale value.
+        if (pinSpeedToggle.checked && currentHostname) {
+          SpeeVid.storage.setPinnedSpeed(currentHostname, response.speed).then(refreshPinnedSpeedsList);
+        }
+      }
     });
   }
 
@@ -226,8 +235,72 @@
       }
       showSection(videoSection);
       renderSpeed(response.speed);
+      if (currentHostname) {
+        SpeeVid.storage.getPinnedSpeed(currentHostname).then(function (pinned) {
+          pinSpeedToggle.checked = pinned !== null;
+        });
+      }
     });
   }
+
+  pinSpeedToggle.addEventListener('change', function (event) {
+    if (!currentHostname) return;
+    if (event.target.checked) {
+      SpeeVid.storage.setPinnedSpeed(currentHostname, clampSpeed(Number(speedSlider.value))).then(refreshPinnedSpeedsList);
+    } else {
+      SpeeVid.storage.removePinnedSpeed(currentHostname).then(refreshPinnedSpeedsList);
+    }
+  });
+
+  // Built with DOM APIs rather than innerHTML string interpolation: site
+  // names can come from an imported backup file, so they're untrusted input
+  // and must never be parsed as markup.
+  function renderPinnedSpeedsList(map) {
+    pinnedSpeedsList.innerHTML = '';
+    var hosts = Object.keys(map).sort();
+
+    if (hosts.length === 0) {
+      var emptyLi = document.createElement('li');
+      emptyLi.className = 'disabled-sites-empty';
+      emptyLi.textContent = i18n.translate(currentLanguage, 'pinnedSpeedsEmpty');
+      pinnedSpeedsList.appendChild(emptyLi);
+      return;
+    }
+
+    var removeLabel = i18n.translate(currentLanguage, 'removeSite');
+    hosts.forEach(function (host) {
+      var li = document.createElement('li');
+      var nameSpan = document.createElement('span');
+      nameSpan.className = 'site-name';
+      nameSpan.textContent = host + ' — ' + formatSpeed(map[host]);
+
+      var removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'remove-site-btn';
+      removeBtn.dataset.site = host;
+      removeBtn.setAttribute('aria-label', removeLabel);
+      removeBtn.title = removeLabel;
+      removeBtn.textContent = '×';
+
+      li.appendChild(nameSpan);
+      li.appendChild(removeBtn);
+      pinnedSpeedsList.appendChild(li);
+    });
+  }
+
+  function refreshPinnedSpeedsList() {
+    return SpeeVid.storage.getPinnedSpeedsMap().then(renderPinnedSpeedsList);
+  }
+
+  pinnedSpeedsList.addEventListener('click', function (event) {
+    var target = event.target.closest('button[data-site]');
+    if (!target) return;
+    var host = target.dataset.site;
+    SpeeVid.storage.removePinnedSpeed(host).then(function () {
+      refreshPinnedSpeedsList();
+      if (host === currentHostname) pinSpeedToggle.checked = false;
+    });
+  });
 
   // Built with DOM APIs rather than innerHTML string interpolation: site
   // names can come from an imported backup file, so they're untrusted input
@@ -333,6 +406,11 @@
   });
 
   function renderSettingsUI(settings) {
+    // Translate first: renderDisabledSitesList()/renderPinnedSpeedsList()
+    // read `currentLanguage` directly (their list items aren't [data-i18n]
+    // elements applyTranslations() can re-visit later), so it must already
+    // be correct before they run.
+    applyTranslations(settings.language);
     floatingToggle.checked = settings.floatingEnabled;
     shortcutsToggle.checked = settings.shortcutsEnabled;
     syncAllTabsToggle.checked = settings.syncAllTabs;
@@ -344,7 +422,7 @@
     if (currentHostname) siteDisableToggle.checked = disabledSites.indexOf(currentHostname) !== -1;
     renderKeyBindings();
     renderDisabledSitesList();
-    applyTranslations(settings.language);
+    refreshPinnedSpeedsList();
   }
 
   function showBackupStatus(key) {
@@ -356,8 +434,13 @@
   }
 
   exportBtn.addEventListener('click', function () {
-    Promise.all([getSettings(), SpeeVid.storage.getSiteSpeedsMap(), SpeeVid.storage.getGlobalSpeed()]).then(function (results) {
-      var backup = { version: 1, settings: results[0], siteSpeeds: results[1], globalSpeed: results[2] };
+    Promise.all([
+      getSettings(),
+      SpeeVid.storage.getSiteSpeedsMap(),
+      SpeeVid.storage.getGlobalSpeed(),
+      SpeeVid.storage.getPinnedSpeedsMap(),
+    ]).then(function (results) {
+      var backup = { version: 1, settings: results[0], siteSpeeds: results[1], globalSpeed: results[2], pinnedSpeeds: results[3] };
       var blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
       var url = URL.createObjectURL(blob);
       var link = document.createElement('a');

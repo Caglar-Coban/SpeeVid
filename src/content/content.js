@@ -5,6 +5,7 @@
   var getSettings = SpeeVid.storage.getSettings;
   var getSiteSpeed = SpeeVid.storage.getSiteSpeed;
   var setSiteSpeed = SpeeVid.storage.setSiteSpeed;
+  var getPinnedSpeed = SpeeVid.storage.getPinnedSpeed;
   var getGlobalSpeed = SpeeVid.storage.getGlobalSpeed;
   var setGlobalSpeed = SpeeVid.storage.setGlobalSpeed;
   var onGlobalSpeedChanged = SpeeVid.storage.onGlobalSpeedChanged;
@@ -401,11 +402,12 @@
   }
 
   function init() {
-    Promise.all([getSettings(), getSiteSpeed(HOSTNAME), getGlobalSpeed()])
+    Promise.all([getSettings(), getSiteSpeed(HOSTNAME), getGlobalSpeed(), getPinnedSpeed(HOSTNAME)])
       .then(function (results) {
         var settings = results[0];
         var siteSpeed = results[1];
         var globalSpeed = results[2];
+        var pinnedSpeed = results[3];
 
         state.floatingEnabled = settings.floatingEnabled;
         state.shortcutsEnabled = settings.shortcutsEnabled;
@@ -415,7 +417,10 @@
         state.disabled = settings.disabledSites.indexOf(HOSTNAME) !== -1;
         state.overlayPosition = settings.overlayPosition;
         state.overlayAutoHide = settings.overlayAutoHide;
-        state.speed = clampSpeed(state.syncAllTabs ? globalSpeed : siteSpeed);
+        // A pinned speed is a deliberate per-site default and wins over the
+        // "last used on this site" memory; "apply to all tabs" still wins
+        // over both, since it's a broader, explicit override.
+        state.speed = clampSpeed(state.syncAllTabs ? globalSpeed : pinnedSpeed !== null ? pinnedSpeed : siteSpeed);
 
         applySpeedToAllVideos();
         syncOverlaysWithVideos();

@@ -50,6 +50,9 @@
       addSite: 'Add',
       removeSite: 'Remove',
       disabledSitesEmpty: 'No sites disabled yet.',
+      pinSpeedForSite: 'Pin this speed for this site',
+      pinnedSpeedsLabel: 'Pinned site speeds',
+      pinnedSpeedsEmpty: 'No pinned speeds yet.',
     },
     tr: {
       settings: 'Ayarlar',
@@ -81,6 +84,9 @@
       addSite: 'Ekle',
       removeSite: 'Kaldır',
       disabledSitesEmpty: 'Henüz devre dışı bırakılan site yok.',
+      pinSpeedForSite: 'Bu hızı bu site için sabitle',
+      pinnedSpeedsLabel: 'Sabitlenmiş site hızları',
+      pinnedSpeedsEmpty: 'Henüz sabitlenmiş hız yok.',
     },
     es: {
       settings: 'Ajustes',
@@ -112,6 +118,9 @@
       addSite: 'Añadir',
       removeSite: 'Eliminar',
       disabledSitesEmpty: 'Todavía no hay sitios desactivados.',
+      pinSpeedForSite: 'Fijar esta velocidad para este sitio',
+      pinnedSpeedsLabel: 'Velocidades fijadas',
+      pinnedSpeedsEmpty: 'Todavía no hay velocidades fijadas.',
     },
     fr: {
       settings: 'Paramètres',
@@ -143,6 +152,9 @@
       addSite: 'Ajouter',
       removeSite: 'Supprimer',
       disabledSitesEmpty: 'Aucun site désactivé pour le moment.',
+      pinSpeedForSite: 'Épingler cette vitesse pour ce site',
+      pinnedSpeedsLabel: 'Vitesses épinglées',
+      pinnedSpeedsEmpty: 'Aucune vitesse épinglée pour le moment.',
     },
     de: {
       settings: 'Einstellungen',
@@ -174,6 +186,9 @@
       addSite: 'Hinzufügen',
       removeSite: 'Entfernen',
       disabledSitesEmpty: 'Noch keine Websites deaktiviert.',
+      pinSpeedForSite: 'Diese Geschwindigkeit für diese Seite fixieren',
+      pinnedSpeedsLabel: 'Fixierte Geschwindigkeiten',
+      pinnedSpeedsEmpty: 'Noch keine fixierten Geschwindigkeiten.',
     },
     it: {
       settings: 'Impostazioni',
@@ -205,6 +220,9 @@
       addSite: 'Aggiungi',
       removeSite: 'Rimuovi',
       disabledSitesEmpty: 'Nessun sito disattivato al momento.',
+      pinSpeedForSite: 'Fissa questa velocità per questo sito',
+      pinnedSpeedsLabel: 'Velocità fissate',
+      pinnedSpeedsEmpty: 'Nessuna velocità fissata al momento.',
     },
     pt: {
       settings: 'Configurações',
@@ -236,6 +254,9 @@
       addSite: 'Adicionar',
       removeSite: 'Remover',
       disabledSitesEmpty: 'Nenhum site desativado ainda.',
+      pinSpeedForSite: 'Fixar esta velocidade para este site',
+      pinnedSpeedsLabel: 'Velocidades fixadas',
+      pinnedSpeedsEmpty: 'Nenhuma velocidade fixada ainda.',
     },
     ru: {
       settings: 'Настройки',
@@ -267,6 +288,9 @@
       addSite: 'Добавить',
       removeSite: 'Удалить',
       disabledSitesEmpty: 'Пока нет отключённых сайтов.',
+      pinSpeedForSite: 'Закрепить эту скорость для этого сайта',
+      pinnedSpeedsLabel: 'Закреплённые скорости',
+      pinnedSpeedsEmpty: 'Пока нет закреплённых скоростей.',
     },
     zh: {
       settings: '设置',
@@ -298,6 +322,9 @@
       addSite: '添加',
       removeSite: '移除',
       disabledSitesEmpty: '尚未禁用任何网站。',
+      pinSpeedForSite: '为此网站固定此速度',
+      pinnedSpeedsLabel: '已固定的网站速度',
+      pinnedSpeedsEmpty: '尚未固定任何速度。',
     },
     ja: {
       settings: '設定',
@@ -329,6 +356,9 @@
       addSite: '追加',
       removeSite: '削除',
       disabledSitesEmpty: 'まだ無効化されたサイトはありません。',
+      pinSpeedForSite: 'このサイトでこの速度を固定',
+      pinnedSpeedsLabel: '固定されたサイトの速度',
+      pinnedSpeedsEmpty: 'まだ固定された速度はありません。',
     },
     ko: {
       settings: '설정',
@@ -360,6 +390,9 @@
       addSite: '추가',
       removeSite: '제거',
       disabledSitesEmpty: '아직 비활성화된 사이트가 없습니다.',
+      pinSpeedForSite: '이 사이트에서 이 속도 고정',
+      pinnedSpeedsLabel: '고정된 사이트 속도',
+      pinnedSpeedsEmpty: '아직 고정된 속도가 없습니다.',
     },
     ar: {
       settings: 'الإعدادات',
@@ -391,6 +424,9 @@
       addSite: 'إضافة',
       removeSite: 'إزالة',
       disabledSitesEmpty: 'لا توجد مواقع معطّلة بعد.',
+      pinSpeedForSite: 'تثبيت هذه السرعة لهذا الموقع',
+      pinnedSpeedsLabel: 'السرعات المثبّتة',
+      pinnedSpeedsEmpty: 'لا توجد سرعات مثبّتة بعد.',
     },
     hi: {
       settings: 'सेटिंग्स',
@@ -422,6 +458,9 @@
       addSite: 'जोड़ें',
       removeSite: 'हटाएं',
       disabledSitesEmpty: 'अभी तक कोई साइट अक्षम नहीं की गई।',
+      pinSpeedForSite: 'इस साइट के लिए यह गति पिन करें',
+      pinnedSpeedsLabel: 'पिन की गई साइट गतियां',
+      pinnedSpeedsEmpty: 'अभी तक कोई गति पिन नहीं की गई।',
     },
   };
 

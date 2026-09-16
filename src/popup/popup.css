@@ -127,6 +127,20 @@ body {
   border-color: var(--sv-accent);
 }
 
+.pin-speed-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--sv-muted);
+  cursor: pointer;
+}
+
+.pin-speed-row input {
+  accent-color: var(--sv-accent);
+}
+
 .presets button.active {
   background: var(--sv-accent);
   border-color: var(--sv-accent);
