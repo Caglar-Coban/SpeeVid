@@ -1,34 +1,36 @@
+<p align="right"><strong>English</strong> · <a href="README.tr.md">Türkçe</a></p>
+
 # SpeeVid
 
-Herhangi bir sitede video oynatma hızını kontrol etmenizi sağlayan bir Chrome uzantısı.
+A Chrome extension for controlling video playback speed on any website.
 
-## Özellikler
+## Features
 
-- Her sitedeki HTML5 videolarında çalışır, 0.25x-16x arası.
-- Video üzerinde beliren yüzen hız kontrolü (isteğe bağlı, ayarlardan kapatılabilir).
-- Klavye kısayolları: varsayılan olarak `S` hızlandır, `D` yavaşlat, `A` sıfırla (1x), `Q` özel hıza atla — ayarlar ekranından yeniden atanabilir. Özel hızın kendisi de (0.25x-16x arası) ayarlardan değiştirilebilir.
-- Popup arayüzü 13 dilde kullanılabilir (varsayılan: İngilizce), ayarlar ekranındaki dil seçiciden değiştirilir.
-- Her site için son kullanılan hızı hatırlar; "Tüm sekmelere uygula" açıksa bunun yerine tek bir hız tüm açık sekmelerde anlık senkronize edilir.
-- Toolbar ikonunda güncel hızı rozet olarak gösterir (1x'te rozet gizlenir).
-- Site bazında tamamen devre dışı bırakılabilir (popup'ın üstündeki anahtar).
-- Tüm ayarlar, kısayollar ve hatırlanan hızlar bir JSON dosyasına yedeklenip başka bir cihaza geri yüklenebilir (ayarlar ekranı).
-- Açık/koyu sistem temasına otomatik uyum.
+- Works with HTML5 videos on any site, 0.25x-16x.
+- Optional floating speed control that appears over the video (toggle in settings).
+- Keyboard shortcuts: `S` speed up, `D` slow down, `A` reset (1x), `Q` jump to a custom speed by default — all rebindable from settings. The custom speed itself (0.25x-16x) is also adjustable.
+- Popup UI available in 13 languages (default: English), switchable from the settings screen.
+- Remembers the last speed used per site; with "Apply to all tabs" enabled, a single speed syncs live across every open tab instead.
+- Shows the current speed as a badge on the toolbar icon (hidden at 1x).
+- Can be fully disabled per site, either with the quick toggle in the popup or a manageable site list in settings.
+- All settings, shortcuts, and remembered speeds can be backed up to a JSON file and restored on another device (settings screen).
+- Automatically follows the system's light/dark theme.
 
-## Kurulum (geliştirici modu)
+## Installation (developer mode)
 
-1. Chrome'da `chrome://extensions` adresine gidin.
-2. Sağ üstten "Geliştirici modu"nu açın.
-3. "Paketlenmemiş öğe yükle" butonuna tıklayın ve bu proje klasörünü seçin.
+1. Go to `chrome://extensions` in Chrome.
+2. Enable "Developer mode" in the top right.
+3. Click "Load unpacked" and select this project folder.
 
-## Geliştirme
+## Development
 
-Paylaşılan mantık `src/shared/` altında, saf JS fonksiyonları olarak yazılmıştır ve `node --test` ile test edilir:
+Shared logic lives under `src/shared/` as plain JS functions and is tested with `node --test`:
 
 ```
 npm test
 ```
 
-İkonları yeniden üretmek için (Windows, PowerShell):
+To regenerate the icons (Windows, PowerShell):
 
 ```
 powershell -ExecutionPolicy Bypass -File tools/generate-icons.ps1
