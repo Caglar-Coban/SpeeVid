@@ -59,6 +59,28 @@
     observer.observe(document.documentElement, { childList: true, subtree: true });
   }
 
+  function isEditableTarget(target) {
+    if (!target) return false;
+    var tag = target.tagName ? target.tagName.toLowerCase() : '';
+    return tag === 'input' || tag === 'textarea' || target.isContentEditable;
+  }
+
+  function handleKeydown(event) {
+    if (!state.shortcutsEnabled) return;
+    if (event.ctrlKey || event.altKey || event.metaKey) return;
+    if (isEditableTarget(event.target)) return;
+    if (scanVideos().length === 0) return;
+
+    var key = event.key.toLowerCase();
+    if (key === 's') {
+      setSpeed(state.speed + 0.1);
+    } else if (key === 'd') {
+      setSpeed(state.speed - 0.1);
+    } else if (key === 'a') {
+      setSpeed(1);
+    }
+  }
+
   function init() {
     Promise.all([getSettings(), getSiteSpeed(HOSTNAME)]).then(function (results) {
       var settings = results[0];
@@ -72,6 +94,7 @@
       observeNewVideos();
 
       chrome.runtime.onMessage.addListener(handleMessage);
+      document.addEventListener('keydown', handleKeydown, true);
       onSettingsChanged(function (changed) {
         if (typeof changed.floatingEnabled === 'boolean') {
           state.floatingEnabled = changed.floatingEnabled;
