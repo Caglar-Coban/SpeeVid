@@ -1,10 +1,17 @@
-importScripts(
-  '../shared/speed-utils.js',
-  '../shared/i18n.js',
-  '../shared/storage-helpers.js',
-  '../shared/storage.js',
-  '../shared/messages.js'
-);
+// Chrome loads this file as a service worker, where importScripts() is the
+// only way to pull in the shared modules. Firefox's MV3 background instead
+// uses a plain `background.scripts` list (see manifest.firefox.json) that
+// already loads each shared file as its own <script>, so importScripts is
+// both unavailable and unnecessary there.
+if (typeof importScripts === 'function') {
+  importScripts(
+    '../shared/speed-utils.js',
+    '../shared/i18n.js',
+    '../shared/storage-helpers.js',
+    '../shared/storage.js',
+    '../shared/messages.js'
+  );
+}
 
 chrome.runtime.onInstalled.addListener(function () {
   chrome.storage.sync.get(SpeeVid.storage.DEFAULT_SETTINGS, function (stored) {

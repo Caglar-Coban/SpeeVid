@@ -4,6 +4,7 @@
   "private": true,
   "description": "SpeeVid Chrome uzantısı",
   "scripts": {
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "build:firefox": "node tools/build-firefox.js"
   }
 }

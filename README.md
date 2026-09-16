@@ -2,7 +2,7 @@
 
 # SpeeVid
 
-A Chrome extension for controlling video playback speed on any website.
+A browser extension (Chrome and Firefox) for controlling video playback speed on any website.
 
 ## Features
 
@@ -18,9 +18,19 @@ A Chrome extension for controlling video playback speed on any website.
 
 ## Installation (developer mode)
 
+**Chrome**
+
 1. Go to `chrome://extensions` in Chrome.
 2. Enable "Developer mode" in the top right.
 3. Click "Load unpacked" and select this project folder.
+
+**Firefox**
+
+1. Run `npm run build:firefox` (writes a Firefox-ready copy to `dist/firefox/`).
+2. Go to `about:debugging#/runtime/this-firefox` in Firefox.
+3. Click "Load Temporary Add-on" and select `dist/firefox/manifest.json`.
+
+Firefox reloads temporary add-ons only for the current session — after restarting the browser, repeat step 3. See [Cross-browser support](#cross-browser-support) below for how the two builds are kept in sync.
 
 ## Development
 
@@ -35,3 +45,7 @@ To regenerate the icons (Windows, PowerShell):
 ```
 powershell -ExecutionPolicy Bypass -File tools/generate-icons.ps1
 ```
+
+## Cross-browser support
+
+`src/` and `icons/` are shared as-is between Chrome and Firefox — only the manifest differs (Chrome uses a `service_worker` background; Firefox uses a plain `background.scripts` list, since Firefox's MV3 service worker support is still inconsistent). `manifest.json` is Chrome's; `manifest.firefox.json` is Firefox's, and `npm run build:firefox` assembles `dist/firefox/` from it plus the shared source — no separate branch, no duplicated logic. `test/manifest.test.js` checks the two manifests stay in sync (same content scripts, icons, permissions) whenever either one changes.

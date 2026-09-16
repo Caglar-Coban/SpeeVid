@@ -2,7 +2,7 @@
 
 # SpeeVid
 
-Herhangi bir sitede video oynatma hızını kontrol etmenizi sağlayan bir Chrome uzantısı.
+Herhangi bir sitede video oynatma hızını kontrol etmenizi sağlayan bir tarayıcı uzantısı (Chrome ve Firefox).
 
 ## Özellikler
 
@@ -18,9 +18,19 @@ Herhangi bir sitede video oynatma hızını kontrol etmenizi sağlayan bir Chrom
 
 ## Kurulum (geliştirici modu)
 
+**Chrome**
+
 1. Chrome'da `chrome://extensions` adresine gidin.
 2. Sağ üstten "Geliştirici modu"nu açın.
 3. "Paketlenmemiş öğe yükle" butonuna tıklayın ve bu proje klasörünü seçin.
+
+**Firefox**
+
+1. `npm run build:firefox` komutunu çalıştırın (Firefox'a hazır bir kopyayı `dist/firefox/` altına yazar).
+2. Firefox'ta `about:debugging#/runtime/this-firefox` adresine gidin.
+3. "Geçici Eklenti Yükle"ye tıklayıp `dist/firefox/manifest.json` dosyasını seçin.
+
+Firefox geçici eklentileri sadece o oturum için yükler — tarayıcıyı yeniden başlattığınızda 3. adımı tekrarlamanız gerekir. İki build'in nasıl senkron tutulduğu için aşağıdaki [Tarayıcılar arası destek](#tarayıcılar-arası-destek) bölümüne bakın.
 
 ## Geliştirme
 
@@ -35,3 +45,7 @@ npm test
 ```
 powershell -ExecutionPolicy Bypass -File tools/generate-icons.ps1
 ```
+
+## Tarayıcılar arası destek
+
+`src/` ve `icons/` Chrome ve Firefox arasında aynı şekilde paylaşılır — sadece manifest farklıdır (Chrome bir `service_worker` background kullanır; Firefox'un MV3 service worker desteği hâlâ tutarsız olduğu için Firefox düz bir `background.scripts` listesi kullanır). `manifest.json` Chrome'a, `manifest.firefox.json` Firefox'a ait; `npm run build:firefox` bu ikisinden ve paylaşılan kaynaktan `dist/firefox/` klasörünü oluşturur — ayrı bir branch yok, mantık tekrarı yok. `test/manifest.test.js`, iki manifest dosyasından biri değiştiğinde ikisinin senkron kalıp kalmadığını (aynı content script'ler, ikonlar, izinler) kontrol eder.
