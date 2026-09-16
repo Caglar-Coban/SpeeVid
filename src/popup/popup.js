@@ -15,6 +15,7 @@
   var speedSlider = document.getElementById('speedSlider');
   var presetsEl = document.getElementById('presets');
   var floatingToggle = document.getElementById('floatingToggle');
+  var shortcutsToggle = document.getElementById('shortcutsToggle');
 
   var activeTabId = null;
 
@@ -60,9 +61,14 @@
     setSetting('floatingEnabled', event.target.checked);
   });
 
+  shortcutsToggle.addEventListener('change', function (event) {
+    setSetting('shortcutsEnabled', event.target.checked);
+  });
+
   function init() {
     getSettings().then(function (settings) {
       floatingToggle.checked = settings.floatingEnabled;
+      shortcutsToggle.checked = settings.shortcutsEnabled;
     });
 
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
@@ -74,7 +80,11 @@
 
       activeTabId = tab.id;
 
-      chrome.tabs.sendMessage(activeTabId, { type: MESSAGE_TYPES.GET_STATE }, function (response) {
+      // Target the top frame explicitly: with `all_frames: true` an untargeted
+      // message resolves with whichever frame replies first (often an iframe
+      // with no video at all). SET_SPEED stays untargeted on purpose so
+      // embedded players still receive it.
+      chrome.tabs.sendMessage(activeTabId, { type: MESSAGE_TYPES.GET_STATE }, { frameId: 0 }, function (response) {
         if (chrome.runtime.lastError || !response) {
           showSection(unsupportedSection);
           return;

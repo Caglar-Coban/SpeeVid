@@ -20,11 +20,16 @@
     });
   }
 
+  function toSiteSpeedsObject(value) {
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  }
+
   function getSiteSpeed(hostname) {
     var key = helpers.buildSiteSpeedKey(hostname);
     return new Promise(function (resolve) {
       chrome.storage.local.get({ siteSpeeds: {} }, function (result) {
-        resolve(result.siteSpeeds[key] || 1);
+        var siteSpeeds = toSiteSpeedsObject(result && result.siteSpeeds);
+        resolve(siteSpeeds[key] || 1);
       });
     });
   }
@@ -33,7 +38,7 @@
     var key = helpers.buildSiteSpeedKey(hostname);
     return new Promise(function (resolve) {
       chrome.storage.local.get({ siteSpeeds: {} }, function (result) {
-        var siteSpeeds = Object.assign({}, result.siteSpeeds);
+        var siteSpeeds = Object.assign({}, toSiteSpeedsObject(result && result.siteSpeeds));
         siteSpeeds[key] = speed;
         chrome.storage.local.set({ siteSpeeds: siteSpeeds }, resolve);
       });

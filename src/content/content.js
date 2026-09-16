@@ -17,6 +17,8 @@
   var MARGIN = 8;
   var overlays = new Map();
   var rafId = null;
+  var PERSIST_DEBOUNCE_MS = 300;
+  var persistTimer = null;
 
   var state = {
     speed: 1,
@@ -34,13 +36,24 @@
     });
   }
 
+  function schedulePersist() {
+    if (persistTimer !== null) clearTimeout(persistTimer);
+    persistTimer = setTimeout(function () {
+      persistTimer = null;
+      // Never persist a speed for a frame that has no video of its own
+      // (e.g. an unrelated ad iframe that received the SET_SPEED broadcast).
+      if (scanVideos().length === 0) return;
+      setSiteSpeed(HOSTNAME, state.speed);
+    }, PERSIST_DEBOUNCE_MS);
+  }
+
   function setSpeed(rawSpeed, persist) {
     if (persist === undefined) persist = true;
     state.speed = clampSpeed(rawSpeed);
     applySpeedToAllVideos();
     updateAllOverlays();
     if (persist) {
-      setSiteSpeed(HOSTNAME, state.speed);
+      schedulePersist();
     }
   }
 
@@ -61,8 +74,31 @@
     return false;
   }
 
+  function nodeListHasVideo(nodes) {
+    if (!nodes) return false;
+    for (var i = 0; i < nodes.length; i += 1) {
+      var node = nodes[i];
+      if (!node || node.nodeType !== 1) continue;
+      if (node.tagName === 'VIDEO') return true;
+      if (node.querySelector && node.querySelector('video')) return true;
+    }
+    return false;
+  }
+
+  function mutationsTouchVideo(mutations) {
+    for (var i = 0; i < mutations.length; i += 1) {
+      var mutation = mutations[i];
+      if (nodeListHasVideo(mutation.addedNodes)) return true;
+      if (nodeListHasVideo(mutation.removedNodes)) return true;
+    }
+    return false;
+  }
+
   function observeNewVideos() {
-    var observer = new MutationObserver(function () {
+    var observer = new MutationObserver(function (mutations) {
+      // The observer only watches childList/subtree, so only added/removed
+      // nodes can ever change the set of videos. Skip everything else.
+      if (!mutationsTouchVideo(mutations)) return;
       applySpeedToAllVideos();
       syncOverlaysWithVideos();
     });
@@ -72,13 +108,23 @@
   function isEditableTarget(target) {
     if (!target) return false;
     var tag = target.tagName ? target.tagName.toLowerCase() : '';
-    return tag === 'input' || tag === 'textarea' || target.isContentEditable;
+    return tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable;
+  }
+
+  function getRealTarget(event) {
+    // Events crossing a shadow boundary are retargeted to the host at the
+    // document level, so composedPath()[0] is the actual focused element.
+    if (typeof event.composedPath === 'function') {
+      var path = event.composedPath();
+      if (path && path.length > 0) return path[0];
+    }
+    return event.target;
   }
 
   function handleKeydown(event) {
     if (!state.shortcutsEnabled) return;
     if (event.ctrlKey || event.altKey || event.metaKey) return;
-    if (isEditableTarget(event.target)) return;
+    if (isEditableTarget(getRealTarget(event))) return;
     if (scanVideos().length === 0) return;
 
     var key = event.key.toLowerCase();
@@ -91,6 +137,9 @@
     }
   }
 
+  // `.panel` sits flush against `.badge` (bottom: 100%) and creates the visual
+  // 8px offset with its own transparent bottom padding, so the cursor never
+  // crosses a non-hovered gap on its way from the badge up to the panel.
   function getOverlayTemplate() {
     return (
       '<style>' +
@@ -99,7 +148,8 @@
       '--sv-bg: rgba(28, 28, 32, 0.9); --sv-fg: #f4f4f5; --sv-accent: #7c6cf6; --sv-border: rgba(255, 255, 255, 0.12); }' +
       '@media (prefers-color-scheme: light) { .root { --sv-bg: rgba(255, 255, 255, 0.95); --sv-fg: #1c1c20; --sv-border: rgba(0, 0, 0, 0.08); } }' +
       '.badge { display: flex; align-items: center; justify-content: center; min-width: 52px; height: 26px; padding: 0 8px; border-radius: 999px; background: var(--sv-bg); color: var(--sv-fg); border: 1px solid var(--sv-border); font-size: 12px; font-weight: 600; cursor: default; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); user-select: none; }' +
-      '.panel { display: none; position: absolute; bottom: calc(100% + 8px); right: 0; flex-direction: column; gap: 8px; width: 200px; padding: 12px; border-radius: 14px; background: var(--sv-bg); border: 1px solid var(--sv-border); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3); }' +
+      '.panel { display: none; position: absolute; bottom: 100%; right: 0; flex-direction: column; padding-bottom: 8px; }' +
+      '.panel-inner { display: flex; flex-direction: column; gap: 8px; width: 200px; padding: 12px; border-radius: 14px; background: var(--sv-bg); border: 1px solid var(--sv-border); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3); }' +
       '.root:hover .panel { display: flex; }' +
       '.slider { width: 100%; accent-color: var(--sv-accent); }' +
       '.presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }' +
@@ -107,10 +157,27 @@
       '.presets button:hover { background: var(--sv-accent); color: #fff; border-color: var(--sv-accent); }' +
       '</style>' +
       '<div class="root">' +
-      '<div class="panel"><input type="range" class="slider" min="0.25" max="3" step="0.05" /><div class="presets"></div></div>' +
+      '<div class="panel"><div class="panel-inner"><input type="range" class="slider" min="0.25" max="3" step="0.05" /><div class="presets"></div></div></div>' +
       '<div class="badge"></div>' +
       '</div>'
     );
+  }
+
+  // Fullscreen content renders in its own layer above the rest of the
+  // document, so overlays must live inside the fullscreen element to be seen.
+  function getOverlayParent() {
+    var fsEl = document.fullscreenElement;
+    // A bare <video> cannot render child elements, so fall back to the root.
+    if (fsEl && fsEl.tagName !== 'VIDEO') return fsEl;
+    return document.documentElement;
+  }
+
+  function handleFullscreenChange() {
+    var parent = getOverlayParent();
+    overlays.forEach(function (overlay) {
+      // Re-appending an existing node moves it; it does not clone it.
+      parent.appendChild(overlay.host);
+    });
   }
 
   function createOverlay(video) {
@@ -122,7 +189,7 @@
     host.style.width = BADGE_WIDTH + 'px';
     host.style.height = BADGE_HEIGHT + 'px';
     host.style.pointerEvents = 'none';
-    document.documentElement.appendChild(host);
+    getOverlayParent().appendChild(host);
 
     var shadow = host.attachShadow({ mode: 'open' });
     shadow.innerHTML = getOverlayTemplate();
@@ -196,7 +263,11 @@
   }
 
   function loopTick() {
-    positionOverlays();
+    // Skip layout reads while the tab is hidden, but keep the loop scheduled
+    // so it resumes on its own once the tab becomes visible again.
+    if (!document.hidden) {
+      positionOverlays();
+    }
     if (state.floatingEnabled && overlays.size > 0) {
       rafId = requestAnimationFrame(loopTick);
     } else {
@@ -226,31 +297,39 @@
   }
 
   function init() {
-    Promise.all([getSettings(), getSiteSpeed(HOSTNAME)]).then(function (results) {
-      var settings = results[0];
-      var siteSpeed = results[1];
+    Promise.all([getSettings(), getSiteSpeed(HOSTNAME)])
+      .then(function (results) {
+        var settings = results[0];
+        var siteSpeed = results[1];
 
-      state.floatingEnabled = settings.floatingEnabled;
-      state.shortcutsEnabled = settings.shortcutsEnabled;
-      state.speed = clampSpeed(siteSpeed);
+        state.floatingEnabled = settings.floatingEnabled;
+        state.shortcutsEnabled = settings.shortcutsEnabled;
+        state.speed = clampSpeed(siteSpeed);
 
-      applySpeedToAllVideos();
-      syncOverlaysWithVideos();
-      observeNewVideos();
+        applySpeedToAllVideos();
+        syncOverlaysWithVideos();
+        observeNewVideos();
 
-      chrome.runtime.onMessage.addListener(handleMessage);
-      document.addEventListener('keydown', handleKeydown, true);
-      onSettingsChanged(function (changed) {
-        if (typeof changed.floatingEnabled === 'boolean') {
-          state.floatingEnabled = changed.floatingEnabled;
-          syncOverlaysWithVideos();
-        }
-        if (typeof changed.shortcutsEnabled === 'boolean') {
-          state.shortcutsEnabled = changed.shortcutsEnabled;
-        }
+        onSettingsChanged(function (changed) {
+          if (typeof changed.floatingEnabled === 'boolean') {
+            state.floatingEnabled = changed.floatingEnabled;
+            syncOverlaysWithVideos();
+          }
+          if (typeof changed.shortcutsEnabled === 'boolean') {
+            state.shortcutsEnabled = changed.shortcutsEnabled;
+          }
+        });
+      })
+      .catch(function (err) {
+        console.error('[SpeeVid] init failed', err);
       });
-    });
   }
+
+  // Registered synchronously so a failed/slow async load can never leave this
+  // frame deaf to messages or shortcuts. `state` already has sane defaults.
+  chrome.runtime.onMessage.addListener(handleMessage);
+  document.addEventListener('keydown', handleKeydown, true);
+  document.addEventListener('fullscreenchange', handleFullscreenChange);
 
   init();
 })();
