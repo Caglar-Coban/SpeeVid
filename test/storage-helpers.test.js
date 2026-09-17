@@ -10,7 +10,19 @@ const {
   mergeDisabledSites,
   mergeOverlayPosition,
   mergeOverlayAutoHide,
+  mergePreservePitch,
+  mergeAggressiveMode,
+  mergeTrackTimeSaved,
+  mergeTheme,
+  mergeAccentColor,
+  mergeAutoSpeedByDuration,
+  mergeAutoSpeedThresholdMinutes,
+  mergeAutoSpeedShortSpeed,
+  mergeAutoSpeedLongSpeed,
   isValidBackup,
+  isValidSitePattern,
+  hostMatchesPattern,
+  hostMatchesAny,
 } = require('../src/shared/storage-helpers.js');
 
 const DEFAULT_KEY_BINDINGS = { increase: 's', decrease: 'd', reset: 'a', custom: 'q' };
@@ -35,12 +47,21 @@ test('mergeSettings applies defaults for missing keys', () => {
     disabledSites: [],
     overlayPosition: 'bottom-right',
     overlayAutoHide: false,
+    preservePitch: true,
+    aggressiveMode: false,
+    trackTimeSaved: true,
+    theme: 'auto',
+    accentColor: '#6552e0',
+    autoSpeedByDuration: false,
+    autoSpeedThresholdMinutes: 20,
+    autoSpeedShortSpeed: 1,
+    autoSpeedLongSpeed: 2,
   });
 });
 
 test('mergeSettings preserves explicit false values', () => {
   assert.deepEqual(
-    mergeSettings({ floatingEnabled: false, shortcutsEnabled: false }),
+    mergeSettings({ floatingEnabled: false, shortcutsEnabled: false, preservePitch: false, trackTimeSaved: false }),
     {
       floatingEnabled: false,
       shortcutsEnabled: false,
@@ -51,6 +72,15 @@ test('mergeSettings preserves explicit false values', () => {
       disabledSites: [],
       overlayPosition: 'bottom-right',
       overlayAutoHide: false,
+      preservePitch: false,
+      aggressiveMode: false,
+      trackTimeSaved: false,
+      theme: 'auto',
+      accentColor: '#6552e0',
+      autoSpeedByDuration: false,
+      autoSpeedThresholdMinutes: 20,
+      autoSpeedShortSpeed: 1,
+      autoSpeedLongSpeed: 2,
     }
   );
 });
@@ -113,6 +143,46 @@ test('mergeDisabledSites lowercases entries, drops non-strings, and de-duplicate
   );
 });
 
+test('mergeDisabledSites keeps well-formed wildcard patterns but drops malformed ones', () => {
+  assert.deepEqual(
+    mergeDisabledSites(['*.Udemy.com', 'ex*ample.com', '**.example.com', '*', 'plain.com']),
+    ['*.udemy.com', 'plain.com']
+  );
+});
+
+test('isValidSitePattern accepts plain hostnames and single `*.` prefixes', () => {
+  assert.equal(isValidSitePattern('example.com'), true);
+  assert.equal(isValidSitePattern('*.example.com'), true);
+});
+
+test('isValidSitePattern rejects malformed wildcard usage', () => {
+  assert.equal(isValidSitePattern('*'), false);
+  assert.equal(isValidSitePattern('ex*ample.com'), false);
+  assert.equal(isValidSitePattern('**.example.com'), false);
+  assert.equal(isValidSitePattern(''), false);
+  assert.equal(isValidSitePattern(null), false);
+});
+
+test('hostMatchesPattern matches a `*.` pattern against its base domain and subdomains', () => {
+  assert.equal(hostMatchesPattern('udemy.com', '*.udemy.com'), true);
+  assert.equal(hostMatchesPattern('www.udemy.com', '*.udemy.com'), true);
+  assert.equal(hostMatchesPattern('app.udemy.com', '*.udemy.com'), true);
+  assert.equal(hostMatchesPattern('notudemy.com', '*.udemy.com'), false);
+  assert.equal(hostMatchesPattern('udemy.com.evil.com', '*.udemy.com'), false);
+});
+
+test('hostMatchesPattern requires an exact match for a plain pattern', () => {
+  assert.equal(hostMatchesPattern('youtube.com', 'youtube.com'), true);
+  assert.equal(hostMatchesPattern('m.youtube.com', 'youtube.com'), false);
+});
+
+test('hostMatchesAny checks a hostname against every pattern in the list', () => {
+  assert.equal(hostMatchesAny('app.udemy.com', ['vimeo.com', '*.udemy.com']), true);
+  assert.equal(hostMatchesAny('vimeo.com', ['vimeo.com', '*.udemy.com']), true);
+  assert.equal(hostMatchesAny('netflix.com', ['vimeo.com', '*.udemy.com']), false);
+  assert.equal(hostMatchesAny('netflix.com', undefined), false);
+});
+
 test('mergeOverlayPosition defaults to bottom-right for missing/invalid values', () => {
   assert.equal(mergeOverlayPosition(undefined), 'bottom-right');
   assert.equal(mergeOverlayPosition('middle'), 'bottom-right');
@@ -131,6 +201,93 @@ test('mergeOverlayAutoHide defaults to false for missing/invalid values', () => 
 test('mergeOverlayAutoHide preserves an explicit boolean', () => {
   assert.equal(mergeOverlayAutoHide(true), true);
   assert.equal(mergeOverlayAutoHide(false), false);
+});
+
+test('mergePreservePitch defaults to true for missing/invalid values', () => {
+  assert.equal(mergePreservePitch(undefined), true);
+  assert.equal(mergePreservePitch('yes'), true);
+});
+
+test('mergePreservePitch preserves an explicit boolean', () => {
+  assert.equal(mergePreservePitch(true), true);
+  assert.equal(mergePreservePitch(false), false);
+});
+
+test('mergeAggressiveMode defaults to false for missing/invalid values', () => {
+  assert.equal(mergeAggressiveMode(undefined), false);
+  assert.equal(mergeAggressiveMode('on'), false);
+});
+
+test('mergeAggressiveMode preserves an explicit boolean', () => {
+  assert.equal(mergeAggressiveMode(true), true);
+  assert.equal(mergeAggressiveMode(false), false);
+});
+
+test('mergeTrackTimeSaved defaults to true for missing/invalid values', () => {
+  assert.equal(mergeTrackTimeSaved(undefined), true);
+  assert.equal(mergeTrackTimeSaved('no'), true);
+});
+
+test('mergeTrackTimeSaved preserves an explicit boolean', () => {
+  assert.equal(mergeTrackTimeSaved(true), true);
+  assert.equal(mergeTrackTimeSaved(false), false);
+});
+
+test('mergeTheme defaults to auto for missing/invalid values', () => {
+  assert.equal(mergeTheme(undefined), 'auto');
+  assert.equal(mergeTheme('purple'), 'auto');
+  assert.equal(mergeTheme(1), 'auto');
+});
+
+test('mergeTheme preserves a supported theme', () => {
+  assert.equal(mergeTheme('light'), 'light');
+  assert.equal(mergeTheme('dark'), 'dark');
+});
+
+test('mergeAccentColor defaults to the default accent for missing/invalid values', () => {
+  assert.equal(mergeAccentColor(undefined), '#6552e0');
+  assert.equal(mergeAccentColor('not-a-color'), '#6552e0');
+  assert.equal(mergeAccentColor('#fff'), '#6552e0');
+});
+
+test('mergeAccentColor preserves and lowercases a valid hex color', () => {
+  assert.equal(mergeAccentColor('#2E7DD1'), '#2e7dd1');
+  assert.equal(mergeAccentColor('#000000'), '#000000');
+});
+
+test('mergeAutoSpeedByDuration defaults to false for missing/invalid values', () => {
+  assert.equal(mergeAutoSpeedByDuration(undefined), false);
+  assert.equal(mergeAutoSpeedByDuration('on'), false);
+});
+
+test('mergeAutoSpeedByDuration preserves an explicit boolean', () => {
+  assert.equal(mergeAutoSpeedByDuration(true), true);
+  assert.equal(mergeAutoSpeedByDuration(false), false);
+});
+
+test('mergeAutoSpeedThresholdMinutes defaults to 20 for missing/invalid values', () => {
+  assert.equal(mergeAutoSpeedThresholdMinutes(undefined), 20);
+  assert.equal(mergeAutoSpeedThresholdMinutes('20'), 20);
+  assert.equal(mergeAutoSpeedThresholdMinutes(NaN), 20);
+});
+
+test('mergeAutoSpeedThresholdMinutes rounds and clamps to 1-180', () => {
+  assert.equal(mergeAutoSpeedThresholdMinutes(5.6), 6);
+  assert.equal(mergeAutoSpeedThresholdMinutes(0), 1);
+  assert.equal(mergeAutoSpeedThresholdMinutes(-10), 1);
+  assert.equal(mergeAutoSpeedThresholdMinutes(999), 180);
+});
+
+test('mergeAutoSpeedShortSpeed defaults to 1x and clamps like any other speed', () => {
+  assert.equal(mergeAutoSpeedShortSpeed(undefined), 1);
+  assert.equal(mergeAutoSpeedShortSpeed('1'), 1);
+  assert.equal(mergeAutoSpeedShortSpeed(30), 16);
+});
+
+test('mergeAutoSpeedLongSpeed defaults to 2x and clamps like any other speed', () => {
+  assert.equal(mergeAutoSpeedLongSpeed(undefined), 2);
+  assert.equal(mergeAutoSpeedLongSpeed('2'), 2);
+  assert.equal(mergeAutoSpeedLongSpeed(0), 0.25);
 });
 
 test('isValidBackup accepts a well-formed backup', () => {

@@ -10,6 +10,10 @@
   var setGlobalSpeed = SpeeVid.storage.setGlobalSpeed;
   var onGlobalSpeedChanged = SpeeVid.storage.onGlobalSpeedChanged;
   var onSettingsChanged = SpeeVid.storage.onSettingsChanged;
+  var addTimeSaved = SpeeVid.storage.addTimeSaved;
+  var hostMatchesAny = SpeeVid.storageHelpers.hostMatchesAny;
+  var getAccentForeground = SpeeVid.theme.getAccentForeground;
+  var pickAutoSpeed = SpeeVid.speedUtils.pickAutoSpeed;
   var MESSAGE_TYPES = SpeeVid.messages.MESSAGE_TYPES;
 
   var HOSTNAME = location.hostname || 'local-file';
@@ -31,6 +35,11 @@
   var rateFightState = new WeakMap();
   var RATE_FIGHT_WINDOW_MS = 2000;
   var RATE_FIGHT_LIMIT = 6;
+  var lastTimeUpdateAt = new WeakMap();
+  var pendingTimeSaved = 0;
+  var TIME_SAVED_FLUSH_MS = 10000;
+  var timeSavedFlushTimer = null;
+  var mainWorldInjected = false;
   // Ephemeral (not persisted): remembers the speed a reset/custom-speed jump
   // came from, so pressing that same key again while already at its target
   // toggles back instead of doing nothing.
@@ -46,6 +55,19 @@
     disabled: false,
     overlayPosition: 'bottom-right',
     overlayAutoHide: false,
+    preservePitch: true,
+    aggressiveMode: false,
+    trackTimeSaved: true,
+    theme: 'auto',
+    accentColor: '#6552e0',
+    autoSpeedByDuration: false,
+    autoSpeedThresholdMinutes: 20,
+    autoSpeedShortSpeed: 1,
+    autoSpeedLongSpeed: 2,
+    // Whether this exact site already has a pinned or remembered speed —
+    // computed once at init() from storage, not re-derived live. If true,
+    // that explicit preference always outranks auto speed-by-duration.
+    hasExplicitSiteSpeed: false,
   };
 
   function sendBadgeUpdate() {
@@ -56,8 +78,24 @@
     });
   }
 
+  // Recurses into open shadow roots so videos rendered by web-component-based
+  // players (some LMS platforms, some modern SPA frameworks) are still found.
+  // Closed shadow roots (`attachShadow({ mode: 'closed' })`) are invisible to
+  // any script outside the component that made them, including this one —
+  // there's no way to reach into those from a content script.
+  function collectVideos(root, results) {
+    var videos = root.querySelectorAll('video');
+    for (var i = 0; i < videos.length; i += 1) results.push(videos[i]);
+    var all = root.querySelectorAll('*');
+    for (var i = 0; i < all.length; i += 1) {
+      if (all[i].shadowRoot) collectVideos(all[i].shadowRoot, results);
+    }
+  }
+
   function scanVideos() {
-    return Array.prototype.slice.call(document.querySelectorAll('video'));
+    var results = [];
+    collectVideos(document, results);
+    return results;
   }
 
   // Some sites (Netflix historically did this) run their own `ratechange`
@@ -79,6 +117,36 @@
     return fight.count > RATE_FIGHT_LIMIT;
   }
 
+  // Without this, browsers correct pitch by default anyway — but some sites
+  // deliberately turn it off (`preservesPitch = false`) so speed changes
+  // sound "natural" to them, which at 1.5x+ produces the chipmunk effect.
+  // Re-assert our own preference every time we touch playbackRate. The
+  // unprefixed name shipped in Chrome 130+/Firefox 129+; the vendor-prefixed
+  // ones cover everything before that, and setting a property a browser
+  // doesn't recognize is a silent no-op, never an error.
+  function applyPitchPreference(video) {
+    video.preservesPitch = state.preservePitch;
+    video.webkitPreservesPitch = state.preservePitch;
+    video.mozPreservesPitch = state.preservePitch;
+  }
+
+  // Auto speed-by-duration only ever proposes a speed; it never overrides a
+  // deliberate choice. A pinned/remembered speed for this exact site always
+  // wins (checked once at init(), via state.hasExplicitSiteSpeed), as does
+  // "apply to all tabs" (a broader, explicit override than either). The
+  // result is never persisted as a remembered site speed — it's a per-video
+  // proposal, not a preference, so a site with a mix of short and long
+  // videos gets re-evaluated for each one instead of getting stuck at
+  // whatever the first video happened to decide.
+  function maybeAutoSetSpeedByDuration(video) {
+    if (!state.autoSpeedByDuration) return;
+    if (state.syncAllTabs || state.hasExplicitSiteSpeed) return;
+    if (!isFinite(video.duration) || video.duration <= 0) return;
+    var target = pickAutoSpeed(video.duration, state.autoSpeedThresholdMinutes, state.autoSpeedShortSpeed, state.autoSpeedLongSpeed);
+    if (target === state.speed) return;
+    setSpeed(target, false);
+  }
+
   // Sites often reset playbackRate to 1 themselves when a new source loads
   // into an existing <video> element (e.g. autoplay/next-episode on an SPA,
   // which reuses the element so our mutation observer never fires). Watching
@@ -88,11 +156,20 @@
     boundVideos.add(video);
     ['loadedmetadata', 'playing', 'ratechange'].forEach(function (evt) {
       video.addEventListener(evt, function () {
+        if (evt === 'loadedmetadata') maybeAutoSetSpeedByDuration(video);
         if (video.playbackRate === state.speed) return;
         if (evt === 'ratechange' && isFightingRate(video)) return;
         video.playbackRate = state.speed;
+        applyPitchPreference(video);
       });
     });
+    video.addEventListener('timeupdate', function () {
+      trackTimeSaved(video);
+    });
+    // The page's own script may have already loaded this video's metadata
+    // before we got here, in which case 'loadedmetadata' already fired and
+    // we'll never see it — check the duration directly for that case.
+    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) maybeAutoSetSpeedByDuration(video);
   }
 
   function applySpeedToAllVideos() {
@@ -100,11 +177,77 @@
     scanVideos().forEach(function (video) {
       bindVideo(video);
       video.playbackRate = state.speed;
+      applyPitchPreference(video);
       // An explicit speed change (user action or sync) always wins — reset
       // any throttle so a fresh, legitimate change isn't mistaken for still
       // being mid-fight with the page's own player.
       rateFightState.delete(video);
     });
+  }
+
+  // Accumulates real time "saved" by watching faster than 1x, in the video's
+  // own `timeupdate` cadence (fires a few times a second while playing,
+  // independent of the floating overlay's rAF loop, so tracking still works
+  // with the overlay turned off). Only counts speed-ups, not slow-downs, and
+  // ignores any gap over 2s (tab backgrounded/suspended, video buffering) so
+  // a long pause can't be misread as watching a huge chunk at high speed.
+  function trackTimeSaved(video) {
+    var now = Date.now();
+    var last = lastTimeUpdateAt.get(video);
+    lastTimeUpdateAt.set(video, now);
+    if (last === undefined) return;
+    if (!state.trackTimeSaved || state.disabled || video.paused) return;
+    var elapsedSec = (now - last) / 1000;
+    if (elapsedSec <= 0 || elapsedSec > 2) return;
+    var saved = elapsedSec * (state.speed - 1);
+    if (saved <= 0) return;
+    pendingTimeSaved += saved;
+    if (timeSavedFlushTimer === null) {
+      timeSavedFlushTimer = setTimeout(flushTimeSaved, TIME_SAVED_FLUSH_MS);
+    }
+  }
+
+  function flushTimeSaved() {
+    timeSavedFlushTimer = null;
+    if (pendingTimeSaved <= 0) return;
+    var toFlush = pendingTimeSaved;
+    pendingTimeSaved = 0;
+    addTimeSaved(toFlush);
+  }
+
+  // Some sites (mainly LMS platforms — Udemy, Coursera, LinkedIn Learning)
+  // wrap their player in a framework that re-clamps `playbackRate` back down
+  // whenever it's set above the site's own UI limit (often 2x), which our
+  // ratechange handler can't out-race indefinitely. The only real fix is to
+  // patch the `playbackRate` setter on HTMLMediaElement.prototype itself —
+  // but content scripts run in an isolated JS world with their own prototype
+  // chain, so patching it here wouldn't touch the page's own scripts at all.
+  // We inject a small script into the page's *main* world to do the patching,
+  // and bridge the desired rate to it with window.postMessage (the standard,
+  // cross-browser-safe way to talk across that world boundary — a direct
+  // `window.foo = ...` from here would not be visible on the other side).
+  // Off by default: this changes how `playbackRate` behaves for every
+  // <video>/<audio> on the page, including the site's own legitimate uses of
+  // it, so it's opt-in and clearly labeled as such in settings.
+  function ensureMainWorldScript() {
+    if (mainWorldInjected) return;
+    mainWorldInjected = true;
+    var script = document.createElement('script');
+    script.src = chrome.runtime.getURL('src/content/main-world-lock.js');
+    script.addEventListener('load', function () {
+      script.remove();
+    });
+    script.addEventListener('error', function () {
+      script.remove();
+    });
+    (document.head || document.documentElement).appendChild(script);
+  }
+
+  function broadcastLockedRate() {
+    if (!state.aggressiveMode) return;
+    ensureMainWorldScript();
+    var rate = state.disabled ? null : state.speed;
+    window.postMessage({ source: 'speevid', type: 'lock-rate', rate: rate }, '*');
   }
 
   function schedulePersist() {
@@ -129,6 +272,7 @@
     if (persist === undefined) persist = true;
     state.speed = clampSpeed(rawSpeed);
     applySpeedToAllVideos();
+    broadcastLockedRate();
     updateAllOverlays();
     sendBadgeUpdate();
     if (persist) {
@@ -237,18 +381,36 @@
   // the badge is pinned to) and creates the visual 8px offset with its own
   // transparent padding, so the cursor never crosses a non-hovered gap on
   // its way from the badge to the panel.
+  //
+  // Colors are computed here rather than left to a static stylesheet
+  // because both the theme (auto/light/dark) and the accent color are
+  // user-configurable. "auto" keeps the original prefers-color-scheme
+  // media query (dark base, light override); an explicit light/dark choice
+  // bakes the final colors directly into the base rule instead and skips
+  // the media query entirely, so it can't be second-guessed by the OS
+  // setting. This whole template is rebuilt from scratch whenever theme,
+  // accent color, or position changes (see the onSettingsChanged handlers).
   function getOverlayTemplate(position) {
     var vertical = position.indexOf('top') === 0 ? 'top' : 'bottom';
     var horizontal = position.indexOf('right') !== -1 ? 'right' : 'left';
     var panelOpen = vertical === 'bottom' ? 'bottom: 100%; padding-bottom: 8px;' : 'top: 100%; padding-top: 8px;';
+    var isLight = state.theme === 'light';
+    var isDark = state.theme === 'dark';
+    var baseBg = isLight ? 'rgba(255, 255, 255, 0.95)' : 'rgba(28, 28, 32, 0.9)';
+    var baseFg = isLight ? '#1c1c20' : '#f4f4f5';
+    var baseBorder = isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.12)';
+    var autoLightOverride =
+      !isLight && !isDark
+        ? '@media (prefers-color-scheme: light) { .root { --sv-bg: rgba(255, 255, 255, 0.95); --sv-fg: #1c1c20; --sv-border: rgba(0, 0, 0, 0.08); } }'
+        : '';
     return (
       '<style>' +
       ':host { all: initial; }' +
       '.root { position: absolute; ' + vertical + ': 0; ' + horizontal + ': 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; ' +
       'opacity: 1; transition: opacity 0.25s ease; ' +
-      '--sv-bg: rgba(28, 28, 32, 0.9); --sv-fg: #f4f4f5; --sv-accent: #7c6cf6; --sv-border: rgba(255, 255, 255, 0.12); }' +
+      '--sv-bg: ' + baseBg + '; --sv-fg: ' + baseFg + '; --sv-accent: ' + state.accentColor + '; --sv-accent-fg: ' + getAccentForeground(state.accentColor) + '; --sv-border: ' + baseBorder + '; }' +
       '.root.idle { opacity: 0; }' +
-      '@media (prefers-color-scheme: light) { .root { --sv-bg: rgba(255, 255, 255, 0.95); --sv-fg: #1c1c20; --sv-border: rgba(0, 0, 0, 0.08); } }' +
+      autoLightOverride +
       '.badge { display: flex; align-items: center; justify-content: center; min-width: 52px; height: 26px; padding: 0 8px; border-radius: 999px; background: var(--sv-bg); color: var(--sv-fg); border: 1px solid var(--sv-border); font-size: 12px; font-weight: 600; cursor: default; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); user-select: none; }' +
       '.panel { display: none; position: absolute; ' + panelOpen + ' ' + horizontal + ': 0; flex-direction: column; }' +
       '.panel-inner { display: flex; flex-direction: column; gap: 8px; width: 200px; padding: 12px; border-radius: 14px; background: var(--sv-bg); border: 1px solid var(--sv-border); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3); }' +
@@ -453,15 +615,38 @@
         state.keyBindings = settings.keyBindings;
         state.customSpeed = settings.customSpeed;
         state.syncAllTabs = settings.syncAllTabs;
-        state.disabled = settings.disabledSites.indexOf(HOSTNAME) !== -1;
+        state.disabled = hostMatchesAny(HOSTNAME, settings.disabledSites);
         state.overlayPosition = settings.overlayPosition;
         state.overlayAutoHide = settings.overlayAutoHide;
-        // A pinned speed is a deliberate per-site default and wins over the
-        // "last used on this site" memory; "apply to all tabs" still wins
-        // over both, since it's a broader, explicit override.
-        state.speed = clampSpeed(state.syncAllTabs ? globalSpeed : pinnedSpeed !== null ? pinnedSpeed : siteSpeed);
+        state.preservePitch = settings.preservePitch;
+        state.aggressiveMode = settings.aggressiveMode;
+        state.trackTimeSaved = settings.trackTimeSaved;
+        state.theme = settings.theme;
+        state.accentColor = settings.accentColor;
+        state.autoSpeedByDuration = settings.autoSpeedByDuration;
+        state.autoSpeedThresholdMinutes = settings.autoSpeedThresholdMinutes;
+        state.autoSpeedShortSpeed = settings.autoSpeedShortSpeed;
+        state.autoSpeedLongSpeed = settings.autoSpeedLongSpeed;
+        state.hasExplicitSiteSpeed = pinnedSpeed !== null || siteSpeed !== null;
+        // Priority, highest first: "apply to all tabs" (broadest explicit
+        // override) > a pinned speed (deliberate per-site default) > the
+        // last speed remembered for this site > auto speed-by-duration
+        // (only a proposal, and only once a video's actual length is known
+        // — see maybeAutoSetSpeedByDuration()) > the plain 1x default.
+        state.speed = clampSpeed(
+          state.syncAllTabs
+            ? globalSpeed
+            : pinnedSpeed !== null
+            ? pinnedSpeed
+            : siteSpeed !== null
+            ? siteSpeed
+            : state.autoSpeedByDuration
+            ? state.autoSpeedShortSpeed
+            : 1
+        );
 
         applySpeedToAllVideos();
+        broadcastLockedRate();
         syncOverlaysWithVideos();
         observeNewVideos();
         sendBadgeUpdate();
@@ -496,16 +681,53 @@
               showOverlay(overlay);
             });
           }
+          if (typeof changed.preservePitch === 'boolean') {
+            state.preservePitch = changed.preservePitch;
+            scanVideos().forEach(applyPitchPreference);
+          }
+          if (typeof changed.aggressiveMode === 'boolean') {
+            state.aggressiveMode = changed.aggressiveMode;
+            broadcastLockedRate();
+          }
+          if (typeof changed.trackTimeSaved === 'boolean') {
+            state.trackTimeSaved = changed.trackTimeSaved;
+          }
+          if (typeof changed.theme === 'string' || typeof changed.accentColor === 'string') {
+            if (typeof changed.theme === 'string') state.theme = changed.theme;
+            if (typeof changed.accentColor === 'string') state.accentColor = changed.accentColor;
+            // Same as an overlayPosition change: the colors are baked into
+            // each overlay's shadow-DOM CSS at creation time, so a full
+            // rebuild is the only way to pick up new ones.
+            destroyAllOverlays();
+            syncOverlaysWithVideos();
+          }
+          if (
+            typeof changed.autoSpeedByDuration === 'boolean' ||
+            typeof changed.autoSpeedThresholdMinutes === 'number' ||
+            typeof changed.autoSpeedShortSpeed === 'number' ||
+            typeof changed.autoSpeedLongSpeed === 'number'
+          ) {
+            if (typeof changed.autoSpeedByDuration === 'boolean') state.autoSpeedByDuration = changed.autoSpeedByDuration;
+            if (typeof changed.autoSpeedThresholdMinutes === 'number') state.autoSpeedThresholdMinutes = changed.autoSpeedThresholdMinutes;
+            if (typeof changed.autoSpeedShortSpeed === 'number') state.autoSpeedShortSpeed = changed.autoSpeedShortSpeed;
+            if (typeof changed.autoSpeedLongSpeed === 'number') state.autoSpeedLongSpeed = changed.autoSpeedLongSpeed;
+            // Re-evaluate immediately for whatever's already loaded, rather
+            // than waiting for the next 'loadedmetadata' (which may never
+            // come again for an already-playing video).
+            if (state.autoSpeedByDuration) scanVideos().forEach(maybeAutoSetSpeedByDuration);
+          }
           if (Array.isArray(changed.disabledSites)) {
             var wasDisabled = state.disabled;
-            state.disabled = changed.disabledSites.indexOf(HOSTNAME) !== -1;
+            state.disabled = hostMatchesAny(HOSTNAME, changed.disabledSites);
             if (state.disabled && !wasDisabled) {
               scanVideos().forEach(function (video) {
                 video.playbackRate = 1;
               });
               destroyAllOverlays();
+              broadcastLockedRate();
             } else if (!state.disabled && wasDisabled) {
               applySpeedToAllVideos();
+              broadcastLockedRate();
               syncOverlaysWithVideos();
             }
             if (state.disabled !== wasDisabled) sendBadgeUpdate();
@@ -528,6 +750,13 @@
   chrome.runtime.onMessage.addListener(handleMessage);
   document.addEventListener('keydown', handleKeydown, true);
   document.addEventListener('fullscreenchange', handleFullscreenChange);
+  // A setTimeout-based flush can be dropped entirely on unload/backgrounding
+  // (Chrome doesn't guarantee pending timers run), so flush eagerly on both
+  // signals instead of only relying on the timer.
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) flushTimeSaved();
+  });
+  window.addEventListener('pagehide', flushTimeSaved);
 
   init();
 })();

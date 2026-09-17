@@ -1,3 +1,16 @@
+/* Theme is "auto" by default: :root holds the light palette and the
+   prefers-color-scheme query below supplies dark, so an untouched browser
+   just follows the OS. Choosing an explicit Light/Dark in settings adds
+   [data-theme="..."] on <html> (see applyTheme() in popup.js / content.js).
+   Explicit light needs no extra rule — it's already what plain :root gives,
+   and the media query is guarded with :not([data-theme="light"]) so a dark
+   OS can't override it. Explicit dark repeats the dark palette in its own
+   [data-theme="dark"] rule, which wins on specificity even when the OS
+   itself is light (so the media query, which wouldn't even match then,
+   isn't what's forcing it). --sv-accent/--sv-accent-fg/--sv-accent-halo are
+   further overridden inline by applyAccentColor() whenever the user picks a
+   custom accent; the values below are just the fallback before that JS
+   runs. */
 :root {
   color-scheme: light dark;
   --sv-bg: #ffffff;
@@ -11,16 +24,26 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --sv-bg: #1c1c20;
     --sv-fg: #f4f4f5;
     --sv-muted: #a1a1aa;
     --sv-border: rgba(255, 255, 255, 0.1);
-    --sv-accent: #8a7bfa;
-    --sv-accent-fg: #14141a;
-    --sv-accent-halo: rgba(138, 123, 250, 0.25);
     --sv-surface: #26262c;
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --sv-bg: #1c1c20;
+  --sv-fg: #f4f4f5;
+  --sv-muted: #a1a1aa;
+  --sv-border: rgba(255, 255, 255, 0.1);
+  --sv-surface: #26262c;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -242,6 +265,91 @@ body {
   border-color: var(--sv-accent);
 }
 
+.theme-switcher {
+  display: flex;
+  border: 1px solid var(--sv-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.theme-btn {
+  padding: 6px 10px;
+  border: none;
+  border-left: 1px solid var(--sv-border);
+  background: var(--sv-surface);
+  color: var(--sv-fg);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.theme-btn:first-child {
+  border-left: none;
+}
+
+.theme-btn:hover {
+  color: var(--sv-accent);
+}
+
+.theme-btn.active {
+  background: var(--sv-accent);
+  color: var(--sv-accent-fg);
+}
+
+.accent-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.accent-presets {
+  display: flex;
+  gap: 6px;
+}
+
+.accent-swatch {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+
+.accent-swatch.active {
+  border-color: var(--sv-fg);
+}
+
+.accent-color-input {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+/* Browsers render <input type="color"> with their own inner chrome we can't
+   fully restyle across engines; trimming the swatch's own border/padding is
+   the cross-browser-safe part, so it at least sits flush with the presets
+   next to it instead of showing a mismatched default frame. */
+.accent-color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.accent-color-input::-webkit-color-swatch {
+  border: 1px solid var(--sv-border);
+  border-radius: 50%;
+}
+
+.accent-color-input::-moz-color-swatch {
+  border: 1px solid var(--sv-border);
+  border-radius: 50%;
+}
+
 .custom-speed-controls {
   display: flex;
   align-items: center;
@@ -263,6 +371,26 @@ body {
 .speed-input:hover,
 .speed-input:focus {
   border-color: var(--sv-accent);
+}
+
+.auto-speed-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.auto-speed-field {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--sv-muted);
+}
+
+.auto-speed-field .speed-input {
+  width: 100%;
 }
 
 .site-disable-row {
@@ -306,6 +434,21 @@ body {
   color: var(--sv-muted);
   text-transform: uppercase;
   letter-spacing: 0.02em;
+}
+
+.time-saved-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--sv-muted);
+}
+
+.time-saved-row .backup-btn {
+  flex: none;
+  padding: 6px 14px;
 }
 
 .disabled-sites-add {

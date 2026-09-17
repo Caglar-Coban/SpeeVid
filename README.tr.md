@@ -17,6 +17,21 @@ Herhangi bir sitede video oynatma hızını kontrol etmenizi sağlayan bir taray
 - Açık/koyu sistem temasına otomatik uyum.
 - SpeeVid kurulduğunda/güncellendiğinde zaten açık olan bir sekmede, popup "sayfa desteklenmiyor" demek yerine tek tıkla yenileme seçeneği sunar.
 - Mağaza listelemesi (ad ve açıklama) desteklenen 13 dilin tamamında yerelleştirilmiştir.
+- Hızlandırılmışken ses perdesini korur (footer'daki anahtar) — perdeyi kasıtlı kapatan sitelerde bile "sincap sesi" olmaz.
+- Sadece normal DOM'u değil, açık shadow root'ların içindeki videoları da bulur — oynatıcısı bir web component olan siteler için gerekli.
+- Devre dışı site listesi `*.example.com` joker karakterli girişleri destekler; tek kayıt hem ana domaini hem tüm alt domainleri kapsar.
+- İsteğe bağlı "kazanılan zaman" sayacı (ayarlar ekranı), 1x'ten hızlı izleyerek ne kadar gerçek zaman kazandığını takip eder, sıfırlama düğmesiyle birlikte.
+- İsteğe bağlı "agresif hız kilidi" (varsayılan kapalı, ayarlar ekranı) — kendi oynatıcısı hızı sürekli geri çeken siteler için (bazı kurs/LMS platformları); her seferinde tekrar savaşmak yerine seçilen hızı sayfa seviyesinde zorlar.
+- Tema kişiselleştirilebilir: Otomatik (tarayıcı/işletim sistemine uyar), Açık veya Koyu; ayrıca tamamen özel bir vurgu rengi (birkaç hazır seçenek veya renk seçiciden istediğin renk) — hem popup'ta hem video üzerindeki yüzen kontrolde uygulanır.
+- İsteğe bağlı "video uzunluğuna göre otomatik hız" (varsayılan kapalı, ayarlar ekranı): ayarlanabilir bir eşik süreden (varsayılan 20 dk) uzun videolar ayarlanabilir bir "uzun" hızla (varsayılan 2x), kısa olanlar ayarlanabilir bir "kısa" hızla (varsayılan 1x) başlar. Yalnızca o sitede henüz sabitlenmiş veya hatırlanmış bir hız yoksa devreye girer — bir pin, hatırlanan bir hız veya "tüm sekmelere uygula" her zaman önde gelir.
+
+## Kişiselleştirme
+
+Popup'ın ayarlar ekranı, SpeeVid'i sabit bir varsayılan yerine kendine göre görünüp davranacak şekilde ayarlamana izin verir:
+
+- **Tema** — Otomatik/Açık/Koyu, tarayıcının geri kalanının ayarından bağımsız.
+- **Vurgu rengi** — hazır seçeneklerden birini seç ya da istediğin özel bir rengi seç; mordan yerine her yerde (popup ve video üzerindeki kontrol) bu renk kullanılır.
+- **Kontrolün konumu ve otomatik gizleme**, **klavye kısayolları** (tamamen yeniden atanabilir), **özel hız değeri**, **site bazlı hız sabitleme ve devre dışı bırakma** (`*.example.com` joker karakterleriyle) zaten aynı ayarlar ekranından değiştirilebiliyor.
 
 ## Kurulum (geliştirici modu)
 

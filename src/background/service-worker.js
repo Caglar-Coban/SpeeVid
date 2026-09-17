@@ -7,6 +7,7 @@ if (typeof importScripts === 'function') {
   importScripts(
     '../shared/speed-utils.js',
     '../shared/i18n.js',
+    '../shared/theme.js',
     '../shared/storage-helpers.js',
     '../shared/storage.js',
     '../shared/messages.js'

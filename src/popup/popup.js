@@ -3,11 +3,14 @@
 
   var PRESETS = SpeeVid.speedUtils.PRESETS;
   var formatSpeed = SpeeVid.speedUtils.formatSpeed;
+  var formatDuration = SpeeVid.speedUtils.formatDuration;
   var clampSpeed = SpeeVid.speedUtils.clampSpeed;
   var getSettings = SpeeVid.storage.getSettings;
   var setSetting = SpeeVid.storage.setSetting;
+  var hostMatchesAny = SpeeVid.storageHelpers.hostMatchesAny;
   var MESSAGE_TYPES = SpeeVid.messages.MESSAGE_TYPES;
   var i18n = SpeeVid.i18n;
+  var theme = SpeeVid.theme;
 
   var videoSection = document.getElementById('videoSection');
   var emptySection = document.getElementById('emptySection');
@@ -30,6 +33,18 @@
   var languageSelect = document.getElementById('languageSelect');
   var overlayPositionSelect = document.getElementById('overlayPositionSelect');
   var overlayAutoHideToggle = document.getElementById('overlayAutoHideToggle');
+  var autoSpeedByDurationToggle = document.getElementById('autoSpeedByDurationToggle');
+  var autoSpeedThresholdInput = document.getElementById('autoSpeedThresholdInput');
+  var autoSpeedShortInput = document.getElementById('autoSpeedShortInput');
+  var autoSpeedLongInput = document.getElementById('autoSpeedLongInput');
+  var themeButtons = Array.prototype.slice.call(document.querySelectorAll('.theme-btn'));
+  var accentPresetsEl = document.getElementById('accentPresets');
+  var accentColorInput = document.getElementById('accentColorInput');
+  var preservePitchToggle = document.getElementById('preservePitchToggle');
+  var aggressiveModeToggle = document.getElementById('aggressiveModeToggle');
+  var trackTimeSavedToggle = document.getElementById('trackTimeSavedToggle');
+  var timeSavedValueEl = document.getElementById('timeSavedValue');
+  var resetTimeSavedBtn = document.getElementById('resetTimeSavedBtn');
   var customSpeedInput = document.getElementById('customSpeedInput');
   var siteDisableRow = document.getElementById('siteDisableRow');
   var siteDisableToggle = document.getElementById('siteDisableToggle');
@@ -125,10 +140,97 @@
     setSetting('overlayAutoHide', event.target.checked);
   });
 
+  // "auto" removes the attribute entirely rather than setting it to an empty
+  // string, so popup.css's plain :root + prefers-color-scheme rules apply
+  // exactly as if theming had never been touched.
+  function applyTheme(value) {
+    if (value === 'auto') {
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      document.documentElement.dataset.theme = value;
+    }
+    themeButtons.forEach(function (btn) {
+      btn.classList.toggle('active', btn.dataset.theme === value);
+    });
+  }
+
+  themeButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      applyTheme(btn.dataset.theme);
+      setSetting('theme', btn.dataset.theme);
+    });
+  });
+
+  function renderAccentPresets() {
+    accentPresetsEl.innerHTML = theme.ACCENT_PRESETS.map(function (color) {
+      return '<button type="button" class="accent-swatch" data-color="' + color + '" style="background:' + color + '"></button>';
+    }).join('');
+  }
+
+  function applyAccentColor(hex) {
+    document.documentElement.style.setProperty('--sv-accent', hex);
+    document.documentElement.style.setProperty('--sv-accent-fg', theme.getAccentForeground(hex));
+    document.documentElement.style.setProperty('--sv-accent-halo', theme.getAccentHalo(hex));
+    accentColorInput.value = hex;
+    Array.prototype.slice.call(accentPresetsEl.querySelectorAll('.accent-swatch')).forEach(function (swatch) {
+      swatch.classList.toggle('active', swatch.dataset.color === hex);
+    });
+  }
+
+  renderAccentPresets();
+
+  accentPresetsEl.addEventListener('click', function (event) {
+    var target = event.target.closest('button[data-color]');
+    if (!target) return;
+    applyAccentColor(target.dataset.color);
+    setSetting('accentColor', target.dataset.color);
+  });
+
+  accentColorInput.addEventListener('input', function (event) {
+    applyAccentColor(event.target.value);
+    setSetting('accentColor', event.target.value);
+  });
+
+  preservePitchToggle.addEventListener('change', function (event) {
+    setSetting('preservePitch', event.target.checked);
+  });
+
+  aggressiveModeToggle.addEventListener('change', function (event) {
+    setSetting('aggressiveMode', event.target.checked);
+  });
+
+  trackTimeSavedToggle.addEventListener('change', function (event) {
+    setSetting('trackTimeSaved', event.target.checked);
+  });
+
   customSpeedInput.addEventListener('change', function (event) {
     var clamped = clampSpeed(Number(event.target.value));
     customSpeedInput.value = String(clamped);
     setSetting('customSpeed', clamped);
+  });
+
+  autoSpeedByDurationToggle.addEventListener('change', function (event) {
+    setSetting('autoSpeedByDuration', event.target.checked);
+  });
+
+  autoSpeedThresholdInput.addEventListener('change', function (event) {
+    var min = SpeeVid.storageHelpers.AUTO_SPEED_THRESHOLD_MIN_MINUTES;
+    var max = SpeeVid.storageHelpers.AUTO_SPEED_THRESHOLD_MAX_MINUTES;
+    var clamped = Math.min(max, Math.max(min, Math.round(Number(event.target.value)) || SpeeVid.storageHelpers.DEFAULT_AUTO_SPEED_THRESHOLD_MINUTES));
+    autoSpeedThresholdInput.value = String(clamped);
+    setSetting('autoSpeedThresholdMinutes', clamped);
+  });
+
+  autoSpeedShortInput.addEventListener('change', function (event) {
+    var clamped = clampSpeed(Number(event.target.value));
+    autoSpeedShortInput.value = String(clamped);
+    setSetting('autoSpeedShortSpeed', clamped);
+  });
+
+  autoSpeedLongInput.addEventListener('change', function (event) {
+    var clamped = clampSpeed(Number(event.target.value));
+    autoSpeedLongInput.value = String(clamped);
+    setSetting('autoSpeedLongSpeed', clamped);
   });
 
   var BLOCKED_KEYS = ['shift', 'control', 'alt', 'meta', 'tab', 'capslock', 'escape'];
@@ -357,7 +459,7 @@
     disabledSites = updated;
     setSetting('disabledSites', disabledSites);
     renderDisabledSitesList();
-    if (currentHostname) siteDisableToggle.checked = disabledSites.indexOf(currentHostname) !== -1;
+    if (currentHostname) siteDisableToggle.checked = hostMatchesAny(currentHostname, disabledSites);
   }
 
   function normalizeHostInput(value) {
@@ -376,6 +478,13 @@
   siteDisableToggle.addEventListener('change', function (event) {
     if (!currentHostname) return;
     var updated = disabledSites.slice();
+    // Add/remove only the exact current hostname — the checkbox itself has
+    // no way to know which wildcard pattern the user might have meant if
+    // the page is disabled by one (e.g. "*.example.com" covering
+    // "app.example.com"). If a wildcard is what's actually disabling this
+    // page, unchecking here won't remove it; the checkbox will show checked
+    // again next time it's rendered until that rule is edited in the
+    // disabled-sites list below.
     var index = updated.indexOf(currentHostname);
     if (event.target.checked && index === -1) {
       updated.push(currentHostname);
@@ -432,14 +541,44 @@
     syncAllTabsToggle.checked = settings.syncAllTabs;
     overlayPositionSelect.value = settings.overlayPosition;
     overlayAutoHideToggle.checked = settings.overlayAutoHide;
+    preservePitchToggle.checked = settings.preservePitch;
+    aggressiveModeToggle.checked = settings.aggressiveMode;
+    trackTimeSavedToggle.checked = settings.trackTimeSaved;
+    applyTheme(settings.theme);
+    applyAccentColor(settings.accentColor);
+    autoSpeedByDurationToggle.checked = settings.autoSpeedByDuration;
+    autoSpeedThresholdInput.value = settings.autoSpeedThresholdMinutes;
+    autoSpeedShortInput.value = settings.autoSpeedShortSpeed;
+    autoSpeedLongInput.value = settings.autoSpeedLongSpeed;
     customSpeedInput.value = settings.customSpeed;
     keyBindings = settings.keyBindings;
     disabledSites = settings.disabledSites;
-    if (currentHostname) siteDisableToggle.checked = disabledSites.indexOf(currentHostname) !== -1;
+    if (currentHostname) siteDisableToggle.checked = hostMatchesAny(currentHostname, disabledSites);
     renderKeyBindings();
     renderDisabledSitesList();
     refreshPinnedSpeedsList();
+    refreshTimeSaved();
   }
+
+  function renderTimeSaved(totalSeconds) {
+    if (totalSeconds < 60) {
+      timeSavedValueEl.textContent = i18n.translate(currentLanguage, 'timeSavedNone');
+      return;
+    }
+    var duration = formatDuration(totalSeconds);
+    var parts = [];
+    if (duration.hours > 0) parts.push(duration.hours + i18n.translate(currentLanguage, 'unitHours'));
+    parts.push(duration.minutes + i18n.translate(currentLanguage, 'unitMinutes'));
+    timeSavedValueEl.textContent = i18n.translate(currentLanguage, 'timeSavedLabel') + ': ' + parts.join(' ');
+  }
+
+  function refreshTimeSaved() {
+    return SpeeVid.storage.getTimeSaved().then(renderTimeSaved);
+  }
+
+  resetTimeSavedBtn.addEventListener('click', function () {
+    SpeeVid.storage.resetTimeSaved().then(refreshTimeSaved);
+  });
 
   function showBackupStatus(key) {
     backupStatus.textContent = i18n.translate(currentLanguage, key);
@@ -455,8 +594,16 @@
       SpeeVid.storage.getSiteSpeedsMap(),
       SpeeVid.storage.getGlobalSpeed(),
       SpeeVid.storage.getPinnedSpeedsMap(),
+      SpeeVid.storage.getTimeSaved(),
     ]).then(function (results) {
-      var backup = { version: 1, settings: results[0], siteSpeeds: results[1], globalSpeed: results[2], pinnedSpeeds: results[3] };
+      var backup = {
+        version: 1,
+        settings: results[0],
+        siteSpeeds: results[1],
+        globalSpeed: results[2],
+        pinnedSpeeds: results[3],
+        timeSavedSeconds: results[4],
+      };
       var blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
       var url = URL.createObjectURL(blob);
       var link = document.createElement('a');
@@ -524,7 +671,7 @@
       }
       if (currentHostname) {
         siteDisableRow.hidden = false;
-        siteDisableToggle.checked = disabledSites.indexOf(currentHostname) !== -1;
+        siteDisableToggle.checked = hostMatchesAny(currentHostname, disabledSites);
       }
 
       refreshVideoState();
