@@ -551,6 +551,15 @@
     host.style.width = BADGE_WIDTH + 'px';
     host.style.height = BADGE_HEIGHT + 'px';
     host.style.pointerEvents = 'none';
+    // Hidden until positionOverlays() (driven by the rAF loop below) sets a
+    // real top/left and flips this to 'block'. `position: fixed` with no
+    // offsets falls back to the browser's own static-position guess, which
+    // for a freshly appended node reads as stuck near the viewport's
+    // top-left corner — visible immediately with correct badge text but
+    // the wrong place, until the first tick lands. That's normally
+    // ~16ms and unnoticeable, but a backgrounded/throttled tab can delay
+    // it far longer, so don't show anything unpositioned in the meantime.
+    host.style.display = 'none';
     getOverlayParent().appendChild(host);
 
     var shadow = host.attachShadow({ mode: 'open' });
