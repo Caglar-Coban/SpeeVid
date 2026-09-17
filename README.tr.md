@@ -7,13 +7,13 @@ Herhangi bir sitede video oynatma hızını kontrol etmenizi sağlayan bir taray
 ## Özellikler
 
 - Her sitedeki HTML5 videolarında çalışır, 0.25x-16x arası.
-- Video üzerinde beliren yüzen hız kontrolü (isteğe bağlı, ayarlardan kapatılabilir).
-- Klavye kısayolları: varsayılan olarak `S` hızlandır, `D` yavaşlat, `A` sıfırla (1x), `Q` özel hıza atla — ayarlar ekranından yeniden atanabilir. Özel hızın kendisi de (0.25x-16x arası) ayarlardan değiştirilebilir.
+- Video üzerinde beliren yüzen hız kontrolü — konumu (4 köşeden biri) ayarlanabilir, isteğe bağlı otomatik gizleme modu var (hareketsizlikte kaybolur, herhangi bir hız değişiminde tekrar belirir).
+- Klavye kısayolları: varsayılan olarak `S` hızlandır, `D` yavaşlat, `A` sıfırla (1x), `Q` özel hıza atla — ayarlar ekranından yeniden atanabilir. Özel hızın kendisi de (0.25x-16x arası) ayarlardan değiştirilebilir. Reset ya da özel hız tuşuna zaten o hızdayken tekrar basmak, bir önceki hıza geri döner.
 - Popup arayüzü 13 dilde kullanılabilir (varsayılan: İngilizce), ayarlar ekranındaki dil seçiciden değiştirilir.
-- Her site için son kullanılan hızı hatırlar; "Tüm sekmelere uygula" açıksa bunun yerine tek bir hız tüm açık sekmelerde anlık senkronize edilir.
+- Her site için son kullanılan hızı hatırlar. Ayrıca bir siteye kasıtlı bir varsayılan hız da sabitleyebilirsiniz ("son kullanılan"dan farklı olarak, her sayfa yüklemesinde önce bu uygulanır); "Tüm sekmelere uygula" açıksa ikisinin de önüne geçip tek bir hız tüm açık sekmelerde anlık senkronize edilir.
 - Toolbar ikonunda güncel hızı rozet olarak gösterir (1x'te rozet gizlenir).
 - Site bazında tamamen devre dışı bırakılabilir — popup'taki hızlı anahtardan veya ayarlardaki yönetilebilir site listesinden.
-- Tüm ayarlar, kısayollar ve hatırlanan hızlar bir JSON dosyasına yedeklenip başka bir cihaza geri yüklenebilir (ayarlar ekranı).
+- Tüm ayarlar, kısayollar, hatırlanan hızlar ve sabitlenmiş hızlar bir JSON dosyasına yedeklenip başka bir cihaza geri yüklenebilir (ayarlar ekranı).
 - Açık/koyu sistem temasına otomatik uyum.
 
 ## Kurulum (geliştirici modu)

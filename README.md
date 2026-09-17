@@ -7,13 +7,13 @@ A browser extension (Chrome and Firefox) for controlling video playback speed on
 ## Features
 
 - Works with HTML5 videos on any site, 0.25x-16x.
-- Optional floating speed control that appears over the video (toggle in settings).
-- Keyboard shortcuts: `S` speed up, `D` slow down, `A` reset (1x), `Q` jump to a custom speed by default — all rebindable from settings. The custom speed itself (0.25x-16x) is also adjustable.
+- Optional floating speed control that appears over the video, with a configurable corner position and an auto-hide mode (fades out when idle, flashes back on any speed change).
+- Keyboard shortcuts: `S` speed up, `D` slow down, `A` reset (1x), `Q` jump to a custom speed by default — all rebindable from settings. The custom speed itself (0.25x-16x) is also adjustable. Pressing reset or the custom-speed key again while already at that exact speed toggles back to whatever speed you were at before.
 - Popup UI available in 13 languages (default: English), switchable from the settings screen.
-- Remembers the last speed used per site; with "Apply to all tabs" enabled, a single speed syncs live across every open tab instead.
+- Remembers the last speed used per site. You can also pin a deliberate default speed for a site (distinct from "last used"), which then wins on every page load; with "Apply to all tabs" enabled, a single speed syncs live across every open tab instead, overriding both.
 - Shows the current speed as a badge on the toolbar icon (hidden at 1x).
 - Can be fully disabled per site, either with the quick toggle in the popup or a manageable site list in settings.
-- All settings, shortcuts, and remembered speeds can be backed up to a JSON file and restored on another device (settings screen).
+- All settings, shortcuts, remembered speeds, and pinned speeds can be backed up to a JSON file and restored on another device (settings screen).
 - Automatically follows the system's light/dark theme.
 
 ## Installation (developer mode)
