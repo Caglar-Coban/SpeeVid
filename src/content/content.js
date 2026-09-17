@@ -64,16 +64,24 @@
     autoSpeedThresholdMinutes: 20,
     autoSpeedShortSpeed: 1,
     autoSpeedLongSpeed: 2,
-    // Whether this exact site already has a pinned or remembered speed —
-    // computed once at init() from storage, not re-derived live. If true,
-    // that explicit preference always outranks auto speed-by-duration.
-    hasExplicitSiteSpeed: false,
+    // Whether this exact site has a *pinned* speed (a deliberate, visible,
+    // removable choice in settings) — computed once at init() from storage,
+    // not re-derived live. Only a pin outranks auto speed-by-duration.
+    // The merely "last remembered" speed does NOT: it's incidental (every
+    // manual speed change gets remembered for the site automatically, with
+    // no way to review or clear it), so letting it silently and permanently
+    // block auto speed-by-duration made the feature look broken forever
+    // after the very first manual adjustment on a site.
+    hasPinnedSpeed: false,
   };
 
   function sendBadgeUpdate() {
     if (!IS_TOP_FRAME) return;
     var text = !state.disabled && state.speed !== 1 ? formatSpeed(state.speed).replace('x', '') : '';
-    chrome.runtime.sendMessage({ type: MESSAGE_TYPES.SPEED_CHANGED, text: text }, function () {
+    // Carries the user's chosen accent color along so the badge matches the
+    // rest of the theming instead of staying hardcoded purple in the
+    // background script, which has no other way to know it.
+    chrome.runtime.sendMessage({ type: MESSAGE_TYPES.SPEED_CHANGED, text: text, color: state.accentColor }, function () {
       void chrome.runtime.lastError;
     });
   }
@@ -131,16 +139,20 @@
   }
 
   // Auto speed-by-duration only ever proposes a speed; it never overrides a
-  // deliberate choice. A pinned/remembered speed for this exact site always
-  // wins (checked once at init(), via state.hasExplicitSiteSpeed), as does
-  // "apply to all tabs" (a broader, explicit override than either). The
-  // result is never persisted as a remembered site speed — it's a per-video
-  // proposal, not a preference, so a site with a mix of short and long
-  // videos gets re-evaluated for each one instead of getting stuck at
-  // whatever the first video happened to decide.
+  // deliberate choice. A *pinned* speed for this exact site always wins
+  // (checked once at init(), via state.hasPinnedSpeed), as does "apply to
+  // all tabs" (a broader, explicit override than either) — but the merely
+  // "last remembered" speed for this site does NOT block it, on purpose:
+  // that memory is incidental (every manual change gets remembered, with no
+  // way to review/clear it), so letting it silently override auto speed
+  // forever after the very first manual adjustment made the feature look
+  // permanently broken. The result here is never persisted as a remembered
+  // site speed either — it's a per-video proposal, not a preference, so a
+  // site with a mix of short and long videos gets re-evaluated for each one
+  // instead of getting stuck at whatever the first video happened to decide.
   function maybeAutoSetSpeedByDuration(video) {
     if (!state.autoSpeedByDuration) return;
-    if (state.syncAllTabs || state.hasExplicitSiteSpeed) return;
+    if (state.syncAllTabs || state.hasPinnedSpeed) return;
     if (!isFinite(video.duration) || video.duration <= 0) return;
     var target = pickAutoSpeed(video.duration, state.autoSpeedThresholdMinutes, state.autoSpeedShortSpeed, state.autoSpeedLongSpeed);
     if (target === state.speed) return;
@@ -229,6 +241,16 @@
   // Off by default: this changes how `playbackRate` behaves for every
   // <video>/<audio> on the page, including the site's own legitimate uses of
   // it, so it's opt-in and clearly labeled as such in settings.
+  //
+  // NOT a security boundary: the postMessage channel and the patched
+  // property are both necessarily reachable by the page's own main-world
+  // scripts too (same window, and the property must stay `configurable` so
+  // we can install it in the first place). A page that actively wants to
+  // defeat this can just post its own {source:'speevid', type:'lock-rate',
+  // rate:null} to release the lock, or redefine the property again itself.
+  // That's an acceptable trade-off for the actual target (sites that
+  // passively re-clamp the rate, not ones hostile to this extension), but
+  // don't rely on this to hold up a genuinely adversarial page.
   function ensureMainWorldScript() {
     if (mainWorldInjected) return;
     mainWorldInjected = true;
@@ -627,7 +649,12 @@
         state.autoSpeedThresholdMinutes = settings.autoSpeedThresholdMinutes;
         state.autoSpeedShortSpeed = settings.autoSpeedShortSpeed;
         state.autoSpeedLongSpeed = settings.autoSpeedLongSpeed;
-        state.hasExplicitSiteSpeed = pinnedSpeed !== null || siteSpeed !== null;
+        // Only a pin blocks auto speed-by-duration going forward (see
+        // maybeAutoSetSpeedByDuration()) — the initial state.speed guess
+        // below still prefers the remembered site speed over a flat 1x,
+        // but that's just to avoid a jarring flash before the video's
+        // actual duration is known; it gets corrected within moments.
+        state.hasPinnedSpeed = pinnedSpeed !== null;
         // Priority, highest first: "apply to all tabs" (broadest explicit
         // override) > a pinned speed (deliberate per-site default) > the
         // last speed remembered for this site > auto speed-by-duration
