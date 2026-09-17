@@ -373,6 +373,26 @@ body {
   border-color: var(--sv-accent);
 }
 
+.auto-speed-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.auto-speed-field {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--sv-muted);
+}
+
+.auto-speed-field .speed-input {
+  width: 100%;
+}
+
 .site-disable-row {
   padding: 0 18px 12px;
   border-bottom: 1px solid var(--sv-border);

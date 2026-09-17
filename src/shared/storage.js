@@ -20,6 +20,10 @@
     trackTimeSaved: true,
     theme: theme.DEFAULT_THEME,
     accentColor: theme.DEFAULT_ACCENT_COLOR,
+    autoSpeedByDuration: false,
+    autoSpeedThresholdMinutes: helpers.DEFAULT_AUTO_SPEED_THRESHOLD_MINUTES,
+    autoSpeedShortSpeed: helpers.DEFAULT_AUTO_SPEED_SHORT_SPEED,
+    autoSpeedLongSpeed: helpers.DEFAULT_AUTO_SPEED_LONG_SPEED,
   };
 
   function safeSpeed(value, fallback) {
@@ -46,12 +50,16 @@
     return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   }
 
+  // Returns null (not 1) when this site has never had a speed recorded, so
+  // callers can tell "never visited/never adjusted" apart from "explicitly
+  // set to 1x" — content.js needs that distinction to know whether auto
+  // speed-by-duration is still allowed to make its own choice.
   function getSiteSpeed(hostname) {
     var key = helpers.buildSiteSpeedKey(hostname);
     return new Promise(function (resolve) {
       chrome.storage.local.get({ siteSpeeds: {} }, function (result) {
         var siteSpeeds = toSiteSpeedsObject(result && result.siteSpeeds);
-        resolve(siteSpeeds[key] || 1);
+        resolve(Object.prototype.hasOwnProperty.call(siteSpeeds, key) ? siteSpeeds[key] : null);
       });
     });
   }

@@ -13,6 +13,7 @@
   var addTimeSaved = SpeeVid.storage.addTimeSaved;
   var hostMatchesAny = SpeeVid.storageHelpers.hostMatchesAny;
   var getAccentForeground = SpeeVid.theme.getAccentForeground;
+  var pickAutoSpeed = SpeeVid.speedUtils.pickAutoSpeed;
   var MESSAGE_TYPES = SpeeVid.messages.MESSAGE_TYPES;
 
   var HOSTNAME = location.hostname || 'local-file';
@@ -59,6 +60,14 @@
     trackTimeSaved: true,
     theme: 'auto',
     accentColor: '#6552e0',
+    autoSpeedByDuration: false,
+    autoSpeedThresholdMinutes: 20,
+    autoSpeedShortSpeed: 1,
+    autoSpeedLongSpeed: 2,
+    // Whether this exact site already has a pinned or remembered speed —
+    // computed once at init() from storage, not re-derived live. If true,
+    // that explicit preference always outranks auto speed-by-duration.
+    hasExplicitSiteSpeed: false,
   };
 
   function sendBadgeUpdate() {
@@ -121,6 +130,23 @@
     video.mozPreservesPitch = state.preservePitch;
   }
 
+  // Auto speed-by-duration only ever proposes a speed; it never overrides a
+  // deliberate choice. A pinned/remembered speed for this exact site always
+  // wins (checked once at init(), via state.hasExplicitSiteSpeed), as does
+  // "apply to all tabs" (a broader, explicit override than either). The
+  // result is never persisted as a remembered site speed — it's a per-video
+  // proposal, not a preference, so a site with a mix of short and long
+  // videos gets re-evaluated for each one instead of getting stuck at
+  // whatever the first video happened to decide.
+  function maybeAutoSetSpeedByDuration(video) {
+    if (!state.autoSpeedByDuration) return;
+    if (state.syncAllTabs || state.hasExplicitSiteSpeed) return;
+    if (!isFinite(video.duration) || video.duration <= 0) return;
+    var target = pickAutoSpeed(video.duration, state.autoSpeedThresholdMinutes, state.autoSpeedShortSpeed, state.autoSpeedLongSpeed);
+    if (target === state.speed) return;
+    setSpeed(target, false);
+  }
+
   // Sites often reset playbackRate to 1 themselves when a new source loads
   // into an existing <video> element (e.g. autoplay/next-episode on an SPA,
   // which reuses the element so our mutation observer never fires). Watching
@@ -130,6 +156,7 @@
     boundVideos.add(video);
     ['loadedmetadata', 'playing', 'ratechange'].forEach(function (evt) {
       video.addEventListener(evt, function () {
+        if (evt === 'loadedmetadata') maybeAutoSetSpeedByDuration(video);
         if (video.playbackRate === state.speed) return;
         if (evt === 'ratechange' && isFightingRate(video)) return;
         video.playbackRate = state.speed;
@@ -139,6 +166,10 @@
     video.addEventListener('timeupdate', function () {
       trackTimeSaved(video);
     });
+    // The page's own script may have already loaded this video's metadata
+    // before we got here, in which case 'loadedmetadata' already fired and
+    // we'll never see it — check the duration directly for that case.
+    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) maybeAutoSetSpeedByDuration(video);
   }
 
   function applySpeedToAllVideos() {
@@ -592,10 +623,27 @@
         state.trackTimeSaved = settings.trackTimeSaved;
         state.theme = settings.theme;
         state.accentColor = settings.accentColor;
-        // A pinned speed is a deliberate per-site default and wins over the
-        // "last used on this site" memory; "apply to all tabs" still wins
-        // over both, since it's a broader, explicit override.
-        state.speed = clampSpeed(state.syncAllTabs ? globalSpeed : pinnedSpeed !== null ? pinnedSpeed : siteSpeed);
+        state.autoSpeedByDuration = settings.autoSpeedByDuration;
+        state.autoSpeedThresholdMinutes = settings.autoSpeedThresholdMinutes;
+        state.autoSpeedShortSpeed = settings.autoSpeedShortSpeed;
+        state.autoSpeedLongSpeed = settings.autoSpeedLongSpeed;
+        state.hasExplicitSiteSpeed = pinnedSpeed !== null || siteSpeed !== null;
+        // Priority, highest first: "apply to all tabs" (broadest explicit
+        // override) > a pinned speed (deliberate per-site default) > the
+        // last speed remembered for this site > auto speed-by-duration
+        // (only a proposal, and only once a video's actual length is known
+        // — see maybeAutoSetSpeedByDuration()) > the plain 1x default.
+        state.speed = clampSpeed(
+          state.syncAllTabs
+            ? globalSpeed
+            : pinnedSpeed !== null
+            ? pinnedSpeed
+            : siteSpeed !== null
+            ? siteSpeed
+            : state.autoSpeedByDuration
+            ? state.autoSpeedShortSpeed
+            : 1
+        );
 
         applySpeedToAllVideos();
         broadcastLockedRate();
@@ -652,6 +700,21 @@
             // rebuild is the only way to pick up new ones.
             destroyAllOverlays();
             syncOverlaysWithVideos();
+          }
+          if (
+            typeof changed.autoSpeedByDuration === 'boolean' ||
+            typeof changed.autoSpeedThresholdMinutes === 'number' ||
+            typeof changed.autoSpeedShortSpeed === 'number' ||
+            typeof changed.autoSpeedLongSpeed === 'number'
+          ) {
+            if (typeof changed.autoSpeedByDuration === 'boolean') state.autoSpeedByDuration = changed.autoSpeedByDuration;
+            if (typeof changed.autoSpeedThresholdMinutes === 'number') state.autoSpeedThresholdMinutes = changed.autoSpeedThresholdMinutes;
+            if (typeof changed.autoSpeedShortSpeed === 'number') state.autoSpeedShortSpeed = changed.autoSpeedShortSpeed;
+            if (typeof changed.autoSpeedLongSpeed === 'number') state.autoSpeedLongSpeed = changed.autoSpeedLongSpeed;
+            // Re-evaluate immediately for whatever's already loaded, rather
+            // than waiting for the next 'loadedmetadata' (which may never
+            // come again for an already-playing video).
+            if (state.autoSpeedByDuration) scanVideos().forEach(maybeAutoSetSpeedByDuration);
           }
           if (Array.isArray(changed.disabledSites)) {
             var wasDisabled = state.disabled;

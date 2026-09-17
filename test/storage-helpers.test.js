@@ -15,6 +15,10 @@ const {
   mergeTrackTimeSaved,
   mergeTheme,
   mergeAccentColor,
+  mergeAutoSpeedByDuration,
+  mergeAutoSpeedThresholdMinutes,
+  mergeAutoSpeedShortSpeed,
+  mergeAutoSpeedLongSpeed,
   isValidBackup,
   isValidSitePattern,
   hostMatchesPattern,
@@ -48,6 +52,10 @@ test('mergeSettings applies defaults for missing keys', () => {
     trackTimeSaved: true,
     theme: 'auto',
     accentColor: '#6552e0',
+    autoSpeedByDuration: false,
+    autoSpeedThresholdMinutes: 20,
+    autoSpeedShortSpeed: 1,
+    autoSpeedLongSpeed: 2,
   });
 });
 
@@ -69,6 +77,10 @@ test('mergeSettings preserves explicit false values', () => {
       trackTimeSaved: false,
       theme: 'auto',
       accentColor: '#6552e0',
+      autoSpeedByDuration: false,
+      autoSpeedThresholdMinutes: 20,
+      autoSpeedShortSpeed: 1,
+      autoSpeedLongSpeed: 2,
     }
   );
 });
@@ -241,6 +253,41 @@ test('mergeAccentColor defaults to the default accent for missing/invalid values
 test('mergeAccentColor preserves and lowercases a valid hex color', () => {
   assert.equal(mergeAccentColor('#2E7DD1'), '#2e7dd1');
   assert.equal(mergeAccentColor('#000000'), '#000000');
+});
+
+test('mergeAutoSpeedByDuration defaults to false for missing/invalid values', () => {
+  assert.equal(mergeAutoSpeedByDuration(undefined), false);
+  assert.equal(mergeAutoSpeedByDuration('on'), false);
+});
+
+test('mergeAutoSpeedByDuration preserves an explicit boolean', () => {
+  assert.equal(mergeAutoSpeedByDuration(true), true);
+  assert.equal(mergeAutoSpeedByDuration(false), false);
+});
+
+test('mergeAutoSpeedThresholdMinutes defaults to 20 for missing/invalid values', () => {
+  assert.equal(mergeAutoSpeedThresholdMinutes(undefined), 20);
+  assert.equal(mergeAutoSpeedThresholdMinutes('20'), 20);
+  assert.equal(mergeAutoSpeedThresholdMinutes(NaN), 20);
+});
+
+test('mergeAutoSpeedThresholdMinutes rounds and clamps to 1-180', () => {
+  assert.equal(mergeAutoSpeedThresholdMinutes(5.6), 6);
+  assert.equal(mergeAutoSpeedThresholdMinutes(0), 1);
+  assert.equal(mergeAutoSpeedThresholdMinutes(-10), 1);
+  assert.equal(mergeAutoSpeedThresholdMinutes(999), 180);
+});
+
+test('mergeAutoSpeedShortSpeed defaults to 1x and clamps like any other speed', () => {
+  assert.equal(mergeAutoSpeedShortSpeed(undefined), 1);
+  assert.equal(mergeAutoSpeedShortSpeed('1'), 1);
+  assert.equal(mergeAutoSpeedShortSpeed(30), 16);
+});
+
+test('mergeAutoSpeedLongSpeed defaults to 2x and clamps like any other speed', () => {
+  assert.equal(mergeAutoSpeedLongSpeed(undefined), 2);
+  assert.equal(mergeAutoSpeedLongSpeed('2'), 2);
+  assert.equal(mergeAutoSpeedLongSpeed(0), 0.25);
 });
 
 test('isValidBackup accepts a well-formed backup', () => {

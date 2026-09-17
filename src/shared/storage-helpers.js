@@ -10,6 +10,11 @@
   var DEFAULT_CUSTOM_SPEED = 2;
   var OVERLAY_POSITIONS = ['bottom-right', 'bottom-left', 'top-right', 'top-left'];
   var DEFAULT_OVERLAY_POSITION = 'bottom-right';
+  var DEFAULT_AUTO_SPEED_THRESHOLD_MINUTES = 20;
+  var AUTO_SPEED_THRESHOLD_MIN_MINUTES = 1;
+  var AUTO_SPEED_THRESHOLD_MAX_MINUTES = 180;
+  var DEFAULT_AUTO_SPEED_SHORT_SPEED = 1;
+  var DEFAULT_AUTO_SPEED_LONG_SPEED = 2;
 
   function buildSiteSpeedKey(hostname) {
     return (hostname || 'unknown').toLowerCase();
@@ -103,6 +108,24 @@
     return typeof stored === 'boolean' ? stored : true;
   }
 
+  function mergeAutoSpeedByDuration(stored) {
+    return typeof stored === 'boolean' ? stored : false;
+  }
+
+  function mergeAutoSpeedThresholdMinutes(stored) {
+    if (typeof stored !== 'number' || Number.isNaN(stored)) return DEFAULT_AUTO_SPEED_THRESHOLD_MINUTES;
+    var rounded = Math.round(stored);
+    return Math.min(AUTO_SPEED_THRESHOLD_MAX_MINUTES, Math.max(AUTO_SPEED_THRESHOLD_MIN_MINUTES, rounded));
+  }
+
+  function mergeAutoSpeedShortSpeed(stored) {
+    return typeof stored === 'number' && !Number.isNaN(stored) ? speedUtils.clampSpeed(stored) : DEFAULT_AUTO_SPEED_SHORT_SPEED;
+  }
+
+  function mergeAutoSpeedLongSpeed(stored) {
+    return typeof stored === 'number' && !Number.isNaN(stored) ? speedUtils.clampSpeed(stored) : DEFAULT_AUTO_SPEED_LONG_SPEED;
+  }
+
   function mergeTheme(stored) {
     return typeof stored === 'string' && theme.THEMES.indexOf(stored) !== -1 ? stored : theme.DEFAULT_THEME;
   }
@@ -128,6 +151,10 @@
       trackTimeSaved: mergeTrackTimeSaved(stored.trackTimeSaved),
       theme: mergeTheme(stored.theme),
       accentColor: mergeAccentColor(stored.accentColor),
+      autoSpeedByDuration: mergeAutoSpeedByDuration(stored.autoSpeedByDuration),
+      autoSpeedThresholdMinutes: mergeAutoSpeedThresholdMinutes(stored.autoSpeedThresholdMinutes),
+      autoSpeedShortSpeed: mergeAutoSpeedShortSpeed(stored.autoSpeedShortSpeed),
+      autoSpeedLongSpeed: mergeAutoSpeedLongSpeed(stored.autoSpeedLongSpeed),
     };
   }
 
@@ -162,6 +189,15 @@
     mergeTrackTimeSaved: mergeTrackTimeSaved,
     mergeTheme: mergeTheme,
     mergeAccentColor: mergeAccentColor,
+    mergeAutoSpeedByDuration: mergeAutoSpeedByDuration,
+    mergeAutoSpeedThresholdMinutes: mergeAutoSpeedThresholdMinutes,
+    mergeAutoSpeedShortSpeed: mergeAutoSpeedShortSpeed,
+    mergeAutoSpeedLongSpeed: mergeAutoSpeedLongSpeed,
+    DEFAULT_AUTO_SPEED_THRESHOLD_MINUTES: DEFAULT_AUTO_SPEED_THRESHOLD_MINUTES,
+    AUTO_SPEED_THRESHOLD_MIN_MINUTES: AUTO_SPEED_THRESHOLD_MIN_MINUTES,
+    AUTO_SPEED_THRESHOLD_MAX_MINUTES: AUTO_SPEED_THRESHOLD_MAX_MINUTES,
+    DEFAULT_AUTO_SPEED_SHORT_SPEED: DEFAULT_AUTO_SPEED_SHORT_SPEED,
+    DEFAULT_AUTO_SPEED_LONG_SPEED: DEFAULT_AUTO_SPEED_LONG_SPEED,
     mergeSettings: mergeSettings,
     isPlainObject: isPlainObject,
     isValidBackup: isValidBackup,

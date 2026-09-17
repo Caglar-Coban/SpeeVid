@@ -33,6 +33,10 @@
   var languageSelect = document.getElementById('languageSelect');
   var overlayPositionSelect = document.getElementById('overlayPositionSelect');
   var overlayAutoHideToggle = document.getElementById('overlayAutoHideToggle');
+  var autoSpeedByDurationToggle = document.getElementById('autoSpeedByDurationToggle');
+  var autoSpeedThresholdInput = document.getElementById('autoSpeedThresholdInput');
+  var autoSpeedShortInput = document.getElementById('autoSpeedShortInput');
+  var autoSpeedLongInput = document.getElementById('autoSpeedLongInput');
   var themeButtons = Array.prototype.slice.call(document.querySelectorAll('.theme-btn'));
   var accentPresetsEl = document.getElementById('accentPresets');
   var accentColorInput = document.getElementById('accentColorInput');
@@ -203,6 +207,30 @@
     var clamped = clampSpeed(Number(event.target.value));
     customSpeedInput.value = String(clamped);
     setSetting('customSpeed', clamped);
+  });
+
+  autoSpeedByDurationToggle.addEventListener('change', function (event) {
+    setSetting('autoSpeedByDuration', event.target.checked);
+  });
+
+  autoSpeedThresholdInput.addEventListener('change', function (event) {
+    var min = SpeeVid.storageHelpers.AUTO_SPEED_THRESHOLD_MIN_MINUTES;
+    var max = SpeeVid.storageHelpers.AUTO_SPEED_THRESHOLD_MAX_MINUTES;
+    var clamped = Math.min(max, Math.max(min, Math.round(Number(event.target.value)) || SpeeVid.storageHelpers.DEFAULT_AUTO_SPEED_THRESHOLD_MINUTES));
+    autoSpeedThresholdInput.value = String(clamped);
+    setSetting('autoSpeedThresholdMinutes', clamped);
+  });
+
+  autoSpeedShortInput.addEventListener('change', function (event) {
+    var clamped = clampSpeed(Number(event.target.value));
+    autoSpeedShortInput.value = String(clamped);
+    setSetting('autoSpeedShortSpeed', clamped);
+  });
+
+  autoSpeedLongInput.addEventListener('change', function (event) {
+    var clamped = clampSpeed(Number(event.target.value));
+    autoSpeedLongInput.value = String(clamped);
+    setSetting('autoSpeedLongSpeed', clamped);
   });
 
   var BLOCKED_KEYS = ['shift', 'control', 'alt', 'meta', 'tab', 'capslock', 'escape'];
@@ -518,6 +546,10 @@
     trackTimeSavedToggle.checked = settings.trackTimeSaved;
     applyTheme(settings.theme);
     applyAccentColor(settings.accentColor);
+    autoSpeedByDurationToggle.checked = settings.autoSpeedByDuration;
+    autoSpeedThresholdInput.value = settings.autoSpeedThresholdMinutes;
+    autoSpeedShortInput.value = settings.autoSpeedShortSpeed;
+    autoSpeedLongInput.value = settings.autoSpeedLongSpeed;
     customSpeedInput.value = settings.customSpeed;
     keyBindings = settings.keyBindings;
     disabledSites = settings.disabledSites;

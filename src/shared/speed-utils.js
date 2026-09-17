@@ -30,6 +30,15 @@
     };
   }
 
+  // Decides the "auto speed by video length" target: long videos (at or
+  // past the threshold) get `longSpeed`, everything else gets `shortSpeed`.
+  // Pure and DOM-free on purpose, so the actual decision is unit-testable
+  // without a <video> element — content.js only supplies the numbers
+  // (video.duration, the user's threshold/speed settings).
+  function pickAutoSpeed(durationSeconds, thresholdMinutes, shortSpeed, longSpeed) {
+    return durationSeconds >= thresholdMinutes * 60 ? longSpeed : shortSpeed;
+  }
+
   var api = {
     SPEED_MIN: SPEED_MIN,
     SPEED_MAX: SPEED_MAX,
@@ -37,6 +46,7 @@
     clampSpeed: clampSpeed,
     formatSpeed: formatSpeed,
     formatDuration: formatDuration,
+    pickAutoSpeed: pickAutoSpeed,
   };
 
   if (typeof module !== 'undefined' && module.exports) {

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { clampSpeed, formatSpeed, formatDuration, PRESETS, SPEED_MIN, SPEED_MAX } = require('../src/shared/speed-utils.js');
+const { clampSpeed, formatSpeed, formatDuration, pickAutoSpeed, PRESETS, SPEED_MIN, SPEED_MAX } = require('../src/shared/speed-utils.js');
 
 test('clampSpeed keeps values within bounds', () => {
   assert.equal(clampSpeed(0.05), SPEED_MIN);
@@ -41,4 +41,19 @@ test('formatDuration splits seconds into whole hours and minutes', () => {
 
 test('formatDuration clamps negative input to zero', () => {
   assert.deepEqual(formatDuration(-100), { hours: 0, minutes: 0 });
+});
+
+test('pickAutoSpeed returns the long speed at or above the threshold', () => {
+  assert.equal(pickAutoSpeed(20 * 60, 20, 1, 2), 2); // exactly at threshold
+  assert.equal(pickAutoSpeed(30 * 60, 20, 1, 2), 2);
+});
+
+test('pickAutoSpeed returns the short speed below the threshold', () => {
+  assert.equal(pickAutoSpeed(19.9 * 60, 20, 1, 2), 1);
+  assert.equal(pickAutoSpeed(0, 20, 1, 2), 1);
+});
+
+test('pickAutoSpeed passes the configured speeds through unchanged', () => {
+  assert.equal(pickAutoSpeed(5 * 60, 3, 0.75, 3), 3);
+  assert.equal(pickAutoSpeed(1 * 60, 3, 0.75, 3), 0.75);
 });
