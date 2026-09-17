@@ -549,6 +549,18 @@ body {
   margin-top: 10px;
 }
 
+/* The conflict-notice paragraph between syncAllTabsToggle and the next
+   toggle-row breaks the plain `.toggle-row + .toggle-row` adjacency above
+   even while [hidden] (the selector only cares about DOM order, not
+   display), so the gap needs restating across it explicitly. */
+.toggle-row + .keybind-hint {
+  margin-top: 10px;
+}
+
+.keybind-hint + .toggle-row {
+  margin-top: 10px;
+}
+
 .switch {
   position: relative;
   display: inline-block;

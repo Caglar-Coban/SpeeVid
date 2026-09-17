@@ -37,6 +37,8 @@
   var autoSpeedThresholdInput = document.getElementById('autoSpeedThresholdInput');
   var autoSpeedShortInput = document.getElementById('autoSpeedShortInput');
   var autoSpeedLongInput = document.getElementById('autoSpeedLongInput');
+  var autoSpeedConflictNotice = document.getElementById('autoSpeedConflictNotice');
+  var syncAllTabsConflictNotice = document.getElementById('syncAllTabsConflictNotice');
   var themeButtons = Array.prototype.slice.call(document.querySelectorAll('.theme-btn'));
   var accentPresetsEl = document.getElementById('accentPresets');
   var accentColorInput = document.getElementById('accentColorInput');
@@ -67,6 +69,14 @@
   var currentHostname = null;
 
   var ALL_SECTIONS = [videoSection, emptySection, unsupportedSection, reloadSection, disabledSection, settingsSection];
+
+  // Briefly reveals a status/notice element, then hides it again.
+  function flashNotice(el, durationMs) {
+    el.hidden = false;
+    setTimeout(function () {
+      el.hidden = true;
+    }, durationMs === undefined ? 2500 : durationMs);
+  }
 
   function showSection(section) {
     ALL_SECTIONS.forEach(function (el) {
@@ -143,6 +153,17 @@
 
   syncAllTabsToggle.addEventListener('change', function (event) {
     setSetting('syncAllTabs', event.target.checked);
+    // "Apply to all tabs" broadcasts one speed everywhere; auto speed by
+    // video length decides a different speed per video based on its own
+    // duration. They can't both be meaningfully active — leaving both on
+    // used to leave auto speed silently overridden with no visible
+    // explanation, so make the clash impossible instead of just
+    // documenting it deep in content.js's priority order.
+    if (event.target.checked && autoSpeedByDurationToggle.checked) {
+      autoSpeedByDurationToggle.checked = false;
+      setSetting('autoSpeedByDuration', false);
+      flashNotice(syncAllTabsConflictNotice, 4000);
+    }
   });
 
   overlayPositionSelect.addEventListener('change', function (event) {
@@ -224,6 +245,13 @@
 
   autoSpeedByDurationToggle.addEventListener('change', function (event) {
     setSetting('autoSpeedByDuration', event.target.checked);
+    // See the matching comment on syncAllTabsToggle's handler — same
+    // conflict, opposite direction.
+    if (event.target.checked && syncAllTabsToggle.checked) {
+      syncAllTabsToggle.checked = false;
+      setSetting('syncAllTabs', false);
+      flashNotice(autoSpeedConflictNotice, 4000);
+    }
   });
 
   autoSpeedThresholdInput.addEventListener('change', function (event) {
@@ -517,10 +545,7 @@
   });
 
   function flashDisabledSiteError() {
-    disabledSiteError.hidden = false;
-    setTimeout(function () {
-      disabledSiteError.hidden = true;
-    }, 2500);
+    flashNotice(disabledSiteError);
   }
 
   function addDisabledSiteFromInput() {
@@ -583,6 +608,16 @@
     autoSpeedThresholdInput.value = settings.autoSpeedThresholdMinutes;
     autoSpeedShortInput.value = settings.autoSpeedShortSpeed;
     autoSpeedLongInput.value = settings.autoSpeedLongSpeed;
+    // A pre-existing conflict from before these two were mutually
+    // exclusive (both could be turned on independently, and "apply to all
+    // tabs" silently overrode auto speed with no explanation — the actual
+    // bug report that led here). Resolve it the same direction the live
+    // toggle handlers below do: auto speed by duration wins.
+    if (settings.autoSpeedByDuration && settings.syncAllTabs) {
+      syncAllTabsToggle.checked = false;
+      setSetting('syncAllTabs', false);
+      flashNotice(syncAllTabsConflictNotice, 4000);
+    }
     customSpeedInput.value = settings.customSpeed;
     keyBindings = settings.keyBindings;
     disabledSites = settings.disabledSites;
