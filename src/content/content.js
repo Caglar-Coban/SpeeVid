@@ -168,9 +168,14 @@
   function bindVideo(video) {
     if (boundVideos.has(video)) return;
     boundVideos.add(video);
-    ['loadedmetadata', 'playing', 'ratechange'].forEach(function (evt) {
+    ['loadedmetadata', 'durationchange', 'playing', 'ratechange'].forEach(function (evt) {
       video.addEventListener(evt, function () {
-        if (evt === 'loadedmetadata') maybeAutoSetSpeedByDuration(video);
+        // Some players (adaptive/streaming ones especially) report an
+        // unusable duration (Infinity/NaN) at 'loadedmetadata' and only
+        // update it later via a separate 'durationchange' — without also
+        // watching that event, auto speed-by-duration could be stuck
+        // forever on its initial guess for exactly those sites.
+        if (evt === 'loadedmetadata' || evt === 'durationchange') maybeAutoSetSpeedByDuration(video);
         if (video.playbackRate === state.speed) return;
         if (evt === 'ratechange' && isFightingRate(video)) return;
         video.playbackRate = state.speed;
