@@ -11,6 +11,7 @@ fs.mkdirSync(outDir, { recursive: true });
 
 fs.cpSync(path.join(root, 'src'), path.join(outDir, 'src'), { recursive: true });
 fs.cpSync(path.join(root, 'icons'), path.join(outDir, 'icons'), { recursive: true });
+fs.cpSync(path.join(root, '_locales'), path.join(outDir, '_locales'), { recursive: true });
 fs.copyFileSync(path.join(root, 'manifest.firefox.json'), path.join(outDir, 'manifest.json'));
 
 console.log('Firefox build written to dist/firefox/');

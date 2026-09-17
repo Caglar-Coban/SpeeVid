@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "SpeeVid",
+    "description": "Extension name shown in the browser toolbar and store listing."
+  },
+  "extDescription": {
+    "message": "Controlla la velocità di qualsiasi video con un controllo flottante, scorciatoie da tastiera e memoria per sito.",
+    "description": "Short description shown in the extension store listing."
+  }
+}

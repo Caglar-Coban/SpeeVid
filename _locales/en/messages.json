@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "SpeeVid",
+    "description": "Extension name shown in the browser toolbar and store listing."
+  },
+  "extDescription": {
+    "message": "Control any video's playback speed with a floating overlay, keyboard shortcuts, and per-site memory.",
+    "description": "Short description shown in the extension store listing."
+  }
+}

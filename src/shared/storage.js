@@ -156,8 +156,13 @@
   // Restores a previously exported backup. Every value is re-validated
   // through the same merge/clamp logic as normal writes, so a hand-edited or
   // stale-format file can never leave storage in an inconsistent state.
+  // Rejects anything that doesn't look like one of our own backups (wrong
+  // version, missing settings object) instead of merging it into defaults —
+  // otherwise picking the wrong file would silently wipe real settings.
   function importSettings(raw) {
-    raw = raw && typeof raw === 'object' ? raw : {};
+    if (!helpers.isValidBackup(raw)) {
+      return Promise.reject(new Error('Invalid backup file'));
+    }
     var sanitizedSettings = helpers.mergeSettings(raw.settings);
     var rawSiteSpeeds = toSiteSpeedsObject(raw.siteSpeeds);
     var siteSpeeds = {};

@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "SpeeVid",
+    "description": "Extension name shown in the browser toolbar and store listing."
+  },
+  "extDescription": {
+    "message": "通过悬浮控件、键盘快捷键和按网站记忆功能，轻松控制任意网页视频的播放速度。",
+    "description": "Short description shown in the extension store listing."
+  }
+}

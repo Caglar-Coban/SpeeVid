@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "SpeeVid",
+    "description": "Extension name shown in the browser toolbar and store listing."
+  },
+  "extDescription": {
+    "message": "Управляйте скоростью воспроизведения любого видео с помощью плавающего элемента и горячих клавиш.",
+    "description": "Short description shown in the extension store listing."
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "SpeeVid",
+    "description": "Extension name shown in the browser toolbar and store listing."
+  },
+  "extDescription": {
+    "message": "플로팅 컨트롤과 키보드 단축키로 모든 동영상의 재생 속도를 손쉽게 조절하세요.",
+    "description": "Short description shown in the extension store listing."
+  }
+}

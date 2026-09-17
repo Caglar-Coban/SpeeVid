@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "SpeeVid",
+    "description": "Extension name shown in the browser toolbar and store listing."
+  },
+  "extDescription": {
+    "message": "تحكّم في سرعة تشغيل أي فيديو باستخدام عنصر تحكم عائم واختصارات لوحة المفاتيح.",
+    "description": "Short description shown in the extension store listing."
+  }
+}

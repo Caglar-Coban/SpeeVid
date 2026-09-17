@@ -73,6 +73,19 @@
     };
   }
 
+  function isPlainObject(value) {
+    return !!value && typeof value === 'object' && !Array.isArray(value);
+  }
+
+  // A backup is only trusted if it declares the version this build knows how
+  // to read and carries a settings object to merge. Anything else — a
+  // different app's export, a hand-edited file missing fields, an unrelated
+  // JSON file the user picked by mistake — is rejected outright instead of
+  // silently merging into defaults and wiping the user's real settings.
+  function isValidBackup(raw) {
+    return isPlainObject(raw) && raw.version === 1 && isPlainObject(raw.settings);
+  }
+
   var api = {
     DEFAULT_KEY_BINDINGS: DEFAULT_KEY_BINDINGS,
     DEFAULT_CUSTOM_SPEED: DEFAULT_CUSTOM_SPEED,
@@ -87,6 +100,8 @@
     mergeOverlayPosition: mergeOverlayPosition,
     mergeOverlayAutoHide: mergeOverlayAutoHide,
     mergeSettings: mergeSettings,
+    isPlainObject: isPlainObject,
+    isValidBackup: isValidBackup,
   };
 
   if (typeof module !== 'undefined' && module.exports) {

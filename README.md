@@ -13,8 +13,10 @@ A browser extension (Chrome and Firefox) for controlling video playback speed on
 - Remembers the last speed used per site. You can also pin a deliberate default speed for a site (distinct from "last used"), which then wins on every page load; with "Apply to all tabs" enabled, a single speed syncs live across every open tab instead, overriding both.
 - Shows the current speed as a badge on the toolbar icon (hidden at 1x).
 - Can be fully disabled per site, either with the quick toggle in the popup or a manageable site list in settings.
-- All settings, shortcuts, remembered speeds, and pinned speeds can be backed up to a JSON file and restored on another device (settings screen).
+- All settings, shortcuts, remembered speeds, and pinned speeds can be backed up to a JSON file and restored on another device (settings screen). A restored file must be a real SpeeVid backup — anything else is rejected instead of silently wiping your settings.
 - Automatically follows the system's light/dark theme.
+- If a tab was already open when SpeeVid was installed or updated, its popup offers a one-click reload instead of just saying the page isn't supported.
+- Store listing (name and description) is localized for all 13 supported languages.
 
 ## Installation (developer mode)
 
