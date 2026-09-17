@@ -51,6 +51,7 @@
   var disabledSiteInput = document.getElementById('disabledSiteInput');
   var addDisabledSiteBtn = document.getElementById('addDisabledSiteBtn');
   var disabledSitesList = document.getElementById('disabledSitesList');
+  var disabledSiteError = document.getElementById('disabledSiteError');
   var exportBtn = document.getElementById('exportBtn');
   var importBtn = document.getElementById('importBtn');
   var importFileInput = document.getElementById('importFileInput');
@@ -97,7 +98,19 @@
 
   function sendSpeed(speed) {
     if (activeTabId === null) return;
-    chrome.tabs.sendMessage(activeTabId, { type: MESSAGE_TYPES.SET_SPEED, speed: speed }, function (response) {
+    // Broadcast untargeted so embedded players (e.g. a YouTube iframe on
+    // this page) still apply the speed too — but ignore this call's own
+    // response. Without a frameId, Chrome resolves the callback from
+    // whichever frame answers first, which can be that same unrelated
+    // iframe instead of the actual page; trusting it here previously let a
+    // stray response get displayed, and — worse — persisted as this site's
+    // pinned speed if "pin" was checked.
+    chrome.tabs.sendMessage(activeTabId, { type: MESSAGE_TYPES.SET_SPEED, speed: speed }, function () {
+      void chrome.runtime.lastError;
+    });
+    // Same targeting GET_STATE already uses, for the one response this
+    // function actually trusts.
+    chrome.tabs.sendMessage(activeTabId, { type: MESSAGE_TYPES.SET_SPEED, speed: speed }, { frameId: 0 }, function (response) {
       if (chrome.runtime.lastError) return;
       if (response) {
         renderSpeed(response.speed, document.activeElement === speedSlider);
@@ -214,9 +227,13 @@
   });
 
   autoSpeedThresholdInput.addEventListener('change', function (event) {
-    var min = SpeeVid.storageHelpers.AUTO_SPEED_THRESHOLD_MIN_MINUTES;
-    var max = SpeeVid.storageHelpers.AUTO_SPEED_THRESHOLD_MAX_MINUTES;
-    var clamped = Math.min(max, Math.max(min, Math.round(Number(event.target.value)) || SpeeVid.storageHelpers.DEFAULT_AUTO_SPEED_THRESHOLD_MINUTES));
+    // Reuses the exact same clamp the backup-import path applies
+    // (mergeAutoSpeedThresholdMinutes), rather than a hand-rolled copy —
+    // a hand-rolled `|| DEFAULT` fallback here previously treated a typed
+    // "0" as falsy and silently saved 20 instead of clamping it to 1 like
+    // every other path did, which was one value producing two different
+    // persisted results depending on which code touched it.
+    var clamped = SpeeVid.storageHelpers.mergeAutoSpeedThresholdMinutes(Number(event.target.value));
     autoSpeedThresholdInput.value = String(clamped);
     setSetting('autoSpeedThresholdMinutes', clamped);
   });
@@ -499,9 +516,25 @@
     }
   });
 
+  function flashDisabledSiteError() {
+    disabledSiteError.hidden = false;
+    setTimeout(function () {
+      disabledSiteError.hidden = true;
+    }, 2500);
+  }
+
   function addDisabledSiteFromInput() {
     var host = normalizeHostInput(disabledSiteInput.value);
     if (!host) return;
+    // Reject anything mergeDisabledSites would silently drop on the next
+    // settings load anyway (e.g. "*evil.com" with no dot after the `*`) —
+    // without this, it looked "added" in this session, matched nothing the
+    // whole time, and then vanished with zero explanation next time
+    // settings were read.
+    if (!SpeeVid.storageHelpers.isValidSitePattern(host)) {
+      flashDisabledSiteError();
+      return;
+    }
     disabledSiteInput.value = '';
     if (disabledSites.indexOf(host) !== -1) return;
     // Stay on the settings view; the top toggle picks up the new state the
