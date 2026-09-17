@@ -11,6 +11,14 @@
 // window.postMessage as the bridge between the two worlds (a direct
 // `window.someProperty = ...` from the isolated world would not be visible
 // here either, for the same reason).
+//
+// NOT a security boundary. This code runs in the page's own main world, so
+// anything the page can do, a hostile script the page loads can do too:
+// post a fake {source:'speevid', type:'lock-rate', rate:null} message to
+// release the lock, or call Object.defineProperty again over ours (it has
+// to stay `configurable` for us to have installed it at all). Designed
+// against sites that passively fight the speed back, not ones actively
+// trying to defeat this extension.
 (function () {
   'use strict';
 
