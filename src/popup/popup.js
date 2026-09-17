@@ -12,6 +12,8 @@
   var videoSection = document.getElementById('videoSection');
   var emptySection = document.getElementById('emptySection');
   var unsupportedSection = document.getElementById('unsupportedSection');
+  var reloadSection = document.getElementById('reloadSection');
+  var reloadBtn = document.getElementById('reloadBtn');
   var disabledSection = document.getElementById('disabledSection');
   var settingsSection = document.getElementById('settingsSection');
   var speedValueEl = document.getElementById('speedValue');
@@ -48,7 +50,7 @@
   var currentLanguage = SpeeVid.storage.DEFAULT_SETTINGS.language;
   var currentHostname = null;
 
-  var ALL_SECTIONS = [videoSection, emptySection, unsupportedSection, disabledSection, settingsSection];
+  var ALL_SECTIONS = [videoSection, emptySection, unsupportedSection, reloadSection, disabledSection, settingsSection];
 
   function showSection(section) {
     ALL_SECTIONS.forEach(function (el) {
@@ -68,10 +70,13 @@
     }).join('');
   }
 
-  function renderSpeed(speed) {
+  function renderSpeed(speed, skipSlider) {
     var clamped = clampSpeed(speed);
     speedValueEl.textContent = formatSpeed(clamped);
-    speedSlider.value = String(clamped);
+    // Skipped while the user is mid-drag: this response is async, and
+    // stomping speedSlider.value while their pointer is still moving it
+    // makes the thumb visibly jump/fight the drag.
+    if (!skipSlider) speedSlider.value = String(clamped);
     renderPresets(clamped);
   }
 
@@ -80,7 +85,7 @@
     chrome.tabs.sendMessage(activeTabId, { type: MESSAGE_TYPES.SET_SPEED, speed: speed }, function (response) {
       if (chrome.runtime.lastError) return;
       if (response) {
-        renderSpeed(response.speed);
+        renderSpeed(response.speed, document.activeElement === speedSlider);
         // Pin is "sticky": adjusting the speed while pinned updates the lock
         // to match, rather than leaving it pointing at a stale value.
         if (pinSpeedToggle.checked && currentHostname) {
@@ -122,7 +127,7 @@
 
   customSpeedInput.addEventListener('change', function (event) {
     var clamped = clampSpeed(Number(event.target.value));
-    customSpeedInput.value = clamped;
+    customSpeedInput.value = String(clamped);
     setSetting('customSpeed', clamped);
   });
 
@@ -222,7 +227,12 @@
     // embedded players still receive it.
     chrome.tabs.sendMessage(activeTabId, { type: MESSAGE_TYPES.GET_STATE }, { frameId: 0 }, function (response) {
       if (chrome.runtime.lastError || !response) {
-        showSection(unsupportedSection);
+        // init() already filtered out non-http(s) URLs into unsupportedSection.
+        // A getMessage failure here, on an http(s) page, almost always means
+        // the content script simply isn't injected yet — the tab was already
+        // open when SpeeVid was installed or updated. Reloading fixes it, so
+        // say that instead of implying the page can never work.
+        showSection(reloadSection);
         return;
       }
       if (response.disabled) {
@@ -242,6 +252,12 @@
       }
     });
   }
+
+  reloadBtn.addEventListener('click', function () {
+    if (activeTabId === null) return;
+    chrome.tabs.reload(activeTabId);
+    window.close();
+  });
 
   pinSpeedToggle.addEventListener('change', function (event) {
     if (!currentHostname) return;
@@ -471,11 +487,15 @@
         showBackupStatus('importError');
         return;
       }
-      SpeeVid.storage.importSettings(parsed).then(function (settings) {
-        renderSettingsUI(settings);
-        refreshVideoState();
-        showBackupStatus('importSuccess');
-      });
+      SpeeVid.storage.importSettings(parsed)
+        .then(function (settings) {
+          renderSettingsUI(settings);
+          refreshVideoState();
+          showBackupStatus('importSuccess');
+        })
+        .catch(function () {
+          showBackupStatus('importError');
+        });
     };
     reader.onerror = function () {
       showBackupStatus('importError');

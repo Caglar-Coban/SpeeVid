@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "SpeeVid",
+    "description": "Extension name shown in the browser toolbar and store listing."
+  },
+  "extDescription": {
+    "message": "Kayan kontrol, klavye kısayolları ve site bazlı hafızayla her videonun oynatma hızını kolayca ayarlayın.",
+    "description": "Short description shown in the extension store listing."
+  }
+}

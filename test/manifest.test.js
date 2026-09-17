@@ -39,3 +39,25 @@ test('firefox manifest declares a stable gecko extension id', () => {
   assert.equal(typeof firefoxManifest.browser_specific_settings.gecko.id, 'string');
   assert.match(firefoxManifest.browser_specific_settings.gecko.id, /^[^@]+@[^@]+$/);
 });
+
+test('both manifests use _locales for name and description, with a default_locale', () => {
+  [chromeManifest, firefoxManifest].forEach((manifest) => {
+    assert.equal(manifest.default_locale, 'en');
+    assert.equal(manifest.name, '__MSG_extName__');
+    assert.equal(manifest.description, '__MSG_extDescription__');
+  });
+});
+
+test('_locales/en/messages.json provides extName and extDescription, and the manifest description fits the 132-char store limit', () => {
+  const localesDir = path.join(__dirname, '../_locales');
+  const locales = fs.readdirSync(localesDir).filter((entry) =>
+    fs.statSync(path.join(localesDir, entry)).isDirectory()
+  );
+  assert.ok(locales.includes('en'));
+  locales.forEach((locale) => {
+    const messages = JSON.parse(fs.readFileSync(path.join(localesDir, locale, 'messages.json'), 'utf8'));
+    assert.equal(typeof messages.extName.message, 'string');
+    assert.equal(typeof messages.extDescription.message, 'string');
+    assert.ok(messages.extDescription.message.length <= 132, `${locale} extDescription exceeds 132 chars`);
+  });
+});

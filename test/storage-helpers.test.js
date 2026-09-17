@@ -10,6 +10,7 @@ const {
   mergeDisabledSites,
   mergeOverlayPosition,
   mergeOverlayAutoHide,
+  isValidBackup,
 } = require('../src/shared/storage-helpers.js');
 
 const DEFAULT_KEY_BINDINGS = { increase: 's', decrease: 'd', reset: 'a', custom: 'q' };
@@ -130,4 +131,23 @@ test('mergeOverlayAutoHide defaults to false for missing/invalid values', () => 
 test('mergeOverlayAutoHide preserves an explicit boolean', () => {
   assert.equal(mergeOverlayAutoHide(true), true);
   assert.equal(mergeOverlayAutoHide(false), false);
+});
+
+test('isValidBackup accepts a well-formed backup', () => {
+  assert.equal(isValidBackup({ version: 1, settings: {} }), true);
+  assert.equal(isValidBackup({ version: 1, settings: { floatingEnabled: true } }), true);
+});
+
+test('isValidBackup rejects malformed or unrelated files', () => {
+  assert.equal(isValidBackup(null), false);
+  assert.equal(isValidBackup(undefined), false);
+  assert.equal(isValidBackup('{}'), false);
+  assert.equal(isValidBackup([]), false);
+  assert.equal(isValidBackup({}), false);
+  assert.equal(isValidBackup({ settings: {} }), false); // missing version
+  assert.equal(isValidBackup({ version: 2, settings: {} }), false); // unknown version
+  assert.equal(isValidBackup({ version: 1 }), false); // missing settings
+  assert.equal(isValidBackup({ version: 1, settings: null }), false);
+  assert.equal(isValidBackup({ version: 1, settings: [] }), false);
+  assert.equal(isValidBackup({ version: '1', settings: {} }), false); // wrong type
 });

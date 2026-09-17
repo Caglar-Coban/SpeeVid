@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "SpeeVid",
+    "description": "Extension name shown in the browser toolbar and store listing."
+  },
+  "extDescription": {
+    "message": "फ़्लोटिंग नियंत्रण और कीबोर्ड शॉर्टकट के साथ किसी भी वीडियो की प्लेबैक गति को आसानी से नियंत्रित करें।",
+    "description": "Short description shown in the extension store listing."
+  }
+}

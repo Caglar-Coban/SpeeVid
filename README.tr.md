@@ -13,8 +13,10 @@ Herhangi bir sitede video oynatma hızını kontrol etmenizi sağlayan bir taray
 - Her site için son kullanılan hızı hatırlar. Ayrıca bir siteye kasıtlı bir varsayılan hız da sabitleyebilirsiniz ("son kullanılan"dan farklı olarak, her sayfa yüklemesinde önce bu uygulanır); "Tüm sekmelere uygula" açıksa ikisinin de önüne geçip tek bir hız tüm açık sekmelerde anlık senkronize edilir.
 - Toolbar ikonunda güncel hızı rozet olarak gösterir (1x'te rozet gizlenir).
 - Site bazında tamamen devre dışı bırakılabilir — popup'taki hızlı anahtardan veya ayarlardaki yönetilebilir site listesinden.
-- Tüm ayarlar, kısayollar, hatırlanan hızlar ve sabitlenmiş hızlar bir JSON dosyasına yedeklenip başka bir cihaza geri yüklenebilir (ayarlar ekranı).
+- Tüm ayarlar, kısayollar, hatırlanan hızlar ve sabitlenmiş hızlar bir JSON dosyasına yedeklenip başka bir cihaza geri yüklenebilir (ayarlar ekranı). Geri yüklenen dosya gerçek bir SpeeVid yedeği olmalı — başka bir dosya seçilirse ayarlarınızı sessizce silmek yerine reddedilir.
 - Açık/koyu sistem temasına otomatik uyum.
+- SpeeVid kurulduğunda/güncellendiğinde zaten açık olan bir sekmede, popup "sayfa desteklenmiyor" demek yerine tek tıkla yenileme seçeneği sunar.
+- Mağaza listelemesi (ad ve açıklama) desteklenen 13 dilin tamamında yerelleştirilmiştir.
 
 ## Kurulum (geliştirici modu)
 

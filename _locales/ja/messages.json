@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "SpeeVid",
+    "description": "Extension name shown in the browser toolbar and store listing."
+  },
+  "extDescription": {
+    "message": "フローティングコントロールとキーボードショートカットで、あらゆる動画の再生速度を操作できます。",
+    "description": "Short description shown in the extension store listing."
+  }
+}

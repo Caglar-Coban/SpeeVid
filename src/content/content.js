@@ -28,6 +28,9 @@
   var PERSIST_DEBOUNCE_MS = 300;
   var persistTimer = null;
   var boundVideos = new WeakSet();
+  var rateFightState = new WeakMap();
+  var RATE_FIGHT_WINDOW_MS = 2000;
+  var RATE_FIGHT_LIMIT = 6;
   // Ephemeral (not persisted): remembers the speed a reset/custom-speed jump
   // came from, so pressing that same key again while already at its target
   // toggles back instead of doing nothing.
@@ -57,6 +60,25 @@
     return Array.prototype.slice.call(document.querySelectorAll('video'));
   }
 
+  // Some sites (Netflix historically did this) run their own `ratechange`
+  // handler that resets playbackRate back to 1, which re-triggers ours here,
+  // which resets it again — an infinite back-and-forth that never throws
+  // (each `playbackRate =` fires its event asynchronously, so it can't
+  // recurse synchronously) but flickers visibly forever. If we're forced to
+  // correct the same video's rate too many times in a short window, assume
+  // we're fighting the page's own player and stand down until something
+  // else (an explicit user action) changes the rate again.
+  function isFightingRate(video) {
+    var now = Date.now();
+    var fight = rateFightState.get(video);
+    if (!fight || now - fight.windowStart > RATE_FIGHT_WINDOW_MS) {
+      fight = { windowStart: now, count: 0 };
+    }
+    fight.count += 1;
+    rateFightState.set(video, fight);
+    return fight.count > RATE_FIGHT_LIMIT;
+  }
+
   // Sites often reset playbackRate to 1 themselves when a new source loads
   // into an existing <video> element (e.g. autoplay/next-episode on an SPA,
   // which reuses the element so our mutation observer never fires). Watching
@@ -66,9 +88,9 @@
     boundVideos.add(video);
     ['loadedmetadata', 'playing', 'ratechange'].forEach(function (evt) {
       video.addEventListener(evt, function () {
-        if (video.playbackRate !== state.speed) {
-          video.playbackRate = state.speed;
-        }
+        if (video.playbackRate === state.speed) return;
+        if (evt === 'ratechange' && isFightingRate(video)) return;
+        video.playbackRate = state.speed;
       });
     });
   }
@@ -78,6 +100,10 @@
     scanVideos().forEach(function (video) {
       bindVideo(video);
       video.playbackRate = state.speed;
+      // An explicit speed change (user action or sync) always wins — reset
+      // any throttle so a fresh, legitimate change isn't mistaken for still
+      // being mid-fight with the page's own player.
+      rateFightState.delete(video);
     });
   }
 
@@ -88,6 +114,12 @@
       // Never persist a speed for a frame that has no video of its own
       // (e.g. an unrelated ad iframe that received the SET_SPEED broadcast).
       if (scanVideos().length === 0) return;
+      // Only the top frame writes to storage. SET_SPEED is broadcast to
+      // every frame so an embedded player (e.g. a YouTube iframe on someone
+      // else's site) still responds, but persisting from that frame would
+      // silently save a site speed under the embed's own hostname
+      // (youtube.com) instead of the page the user actually adjusted.
+      if (!IS_TOP_FRAME) return;
       setSiteSpeed(HOSTNAME, state.speed);
       if (state.syncAllTabs) setGlobalSpeed(state.speed);
     }, PERSIST_DEBOUNCE_MS);
@@ -274,6 +306,13 @@
     if (overlays.has(video)) return;
 
     var host = document.createElement('div');
+    // `fixed` stays viewport-relative even after handleFullscreenChange()
+    // reparents this host into the fullscreen element, which is fine here
+    // only because a fullscreen element always covers the whole viewport —
+    // so `fixed` and `absolute`-to-that-element resolve to the same
+    // coordinates. Don't "simplify" this to `absolute` without re-checking
+    // positionOverlays(), which reads getBoundingClientRect() (viewport
+    // space) and assumes `fixed` semantics.
     host.style.position = 'fixed';
     host.style.zIndex = '2147483647';
     host.style.width = BADGE_WIDTH + 'px';
