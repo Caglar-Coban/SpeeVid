@@ -10,6 +10,7 @@
   var hostMatchesAny = SpeeVid.storageHelpers.hostMatchesAny;
   var MESSAGE_TYPES = SpeeVid.messages.MESSAGE_TYPES;
   var i18n = SpeeVid.i18n;
+  var theme = SpeeVid.theme;
 
   var videoSection = document.getElementById('videoSection');
   var emptySection = document.getElementById('emptySection');
@@ -32,6 +33,9 @@
   var languageSelect = document.getElementById('languageSelect');
   var overlayPositionSelect = document.getElementById('overlayPositionSelect');
   var overlayAutoHideToggle = document.getElementById('overlayAutoHideToggle');
+  var themeButtons = Array.prototype.slice.call(document.querySelectorAll('.theme-btn'));
+  var accentPresetsEl = document.getElementById('accentPresets');
+  var accentColorInput = document.getElementById('accentColorInput');
   var preservePitchToggle = document.getElementById('preservePitchToggle');
   var aggressiveModeToggle = document.getElementById('aggressiveModeToggle');
   var trackTimeSavedToggle = document.getElementById('trackTimeSavedToggle');
@@ -130,6 +134,57 @@
 
   overlayAutoHideToggle.addEventListener('change', function (event) {
     setSetting('overlayAutoHide', event.target.checked);
+  });
+
+  // "auto" removes the attribute entirely rather than setting it to an empty
+  // string, so popup.css's plain :root + prefers-color-scheme rules apply
+  // exactly as if theming had never been touched.
+  function applyTheme(value) {
+    if (value === 'auto') {
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      document.documentElement.dataset.theme = value;
+    }
+    themeButtons.forEach(function (btn) {
+      btn.classList.toggle('active', btn.dataset.theme === value);
+    });
+  }
+
+  themeButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      applyTheme(btn.dataset.theme);
+      setSetting('theme', btn.dataset.theme);
+    });
+  });
+
+  function renderAccentPresets() {
+    accentPresetsEl.innerHTML = theme.ACCENT_PRESETS.map(function (color) {
+      return '<button type="button" class="accent-swatch" data-color="' + color + '" style="background:' + color + '"></button>';
+    }).join('');
+  }
+
+  function applyAccentColor(hex) {
+    document.documentElement.style.setProperty('--sv-accent', hex);
+    document.documentElement.style.setProperty('--sv-accent-fg', theme.getAccentForeground(hex));
+    document.documentElement.style.setProperty('--sv-accent-halo', theme.getAccentHalo(hex));
+    accentColorInput.value = hex;
+    Array.prototype.slice.call(accentPresetsEl.querySelectorAll('.accent-swatch')).forEach(function (swatch) {
+      swatch.classList.toggle('active', swatch.dataset.color === hex);
+    });
+  }
+
+  renderAccentPresets();
+
+  accentPresetsEl.addEventListener('click', function (event) {
+    var target = event.target.closest('button[data-color]');
+    if (!target) return;
+    applyAccentColor(target.dataset.color);
+    setSetting('accentColor', target.dataset.color);
+  });
+
+  accentColorInput.addEventListener('input', function (event) {
+    applyAccentColor(event.target.value);
+    setSetting('accentColor', event.target.value);
   });
 
   preservePitchToggle.addEventListener('change', function (event) {
@@ -461,6 +516,8 @@
     preservePitchToggle.checked = settings.preservePitch;
     aggressiveModeToggle.checked = settings.aggressiveMode;
     trackTimeSavedToggle.checked = settings.trackTimeSaved;
+    applyTheme(settings.theme);
+    applyAccentColor(settings.accentColor);
     customSpeedInput.value = settings.customSpeed;
     keyBindings = settings.keyBindings;
     disabledSites = settings.disabledSites;

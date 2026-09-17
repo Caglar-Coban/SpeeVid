@@ -4,6 +4,7 @@
   var helpers = root.SpeeVid && root.SpeeVid.storageHelpers;
   var i18n = root.SpeeVid && root.SpeeVid.i18n;
   var speedUtils = root.SpeeVid && root.SpeeVid.speedUtils;
+  var theme = root.SpeeVid && root.SpeeVid.theme;
   var DEFAULT_SETTINGS = {
     floatingEnabled: true,
     shortcutsEnabled: true,
@@ -17,6 +18,8 @@
     preservePitch: true,
     aggressiveMode: false,
     trackTimeSaved: true,
+    theme: theme.DEFAULT_THEME,
+    accentColor: theme.DEFAULT_ACCENT_COLOR,
   };
 
   function safeSpeed(value, fallback) {

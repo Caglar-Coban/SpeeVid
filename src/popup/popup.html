@@ -70,6 +70,24 @@
       <div class="settings-divider"></div>
 
       <div class="keybind-row">
+        <span data-i18n="themeLabel">Theme</span>
+        <div class="theme-switcher" id="themeSwitcher">
+          <button type="button" class="theme-btn" data-theme="auto" data-i18n="themeAuto">Auto</button>
+          <button type="button" class="theme-btn" data-theme="light" data-i18n="themeLight">Light</button>
+          <button type="button" class="theme-btn" data-theme="dark" data-i18n="themeDark">Dark</button>
+        </div>
+      </div>
+      <div class="keybind-row">
+        <span data-i18n="accentColorLabel">Accent color</span>
+        <div class="accent-picker">
+          <div class="accent-presets" id="accentPresets"></div>
+          <input type="color" id="accentColorInput" class="accent-color-input" value="#6552e0" data-i18n-aria="accentColorCustom" aria-label="Custom accent color" />
+        </div>
+      </div>
+
+      <div class="settings-divider"></div>
+
+      <div class="keybind-row">
         <span data-i18n="overlayPositionLabel">Overlay position</span>
         <select id="overlayPositionSelect" class="lang-select">
           <option value="bottom-right" data-i18n="positionBottomRight">Bottom right</option>
@@ -193,6 +211,7 @@
 
   <script src="../shared/speed-utils.js"></script>
   <script src="../shared/i18n.js"></script>
+  <script src="../shared/theme.js"></script>
   <script src="../shared/storage-helpers.js"></script>
   <script src="../shared/storage.js"></script>
   <script src="../shared/messages.js"></script>

@@ -22,6 +22,15 @@ Herhangi bir sitede video oynatma hızını kontrol etmenizi sağlayan bir taray
 - Devre dışı site listesi `*.example.com` joker karakterli girişleri destekler; tek kayıt hem ana domaini hem tüm alt domainleri kapsar.
 - İsteğe bağlı "kazanılan zaman" sayacı (ayarlar ekranı), 1x'ten hızlı izleyerek ne kadar gerçek zaman kazandığını takip eder, sıfırlama düğmesiyle birlikte.
 - İsteğe bağlı "agresif hız kilidi" (varsayılan kapalı, ayarlar ekranı) — kendi oynatıcısı hızı sürekli geri çeken siteler için (bazı kurs/LMS platformları); her seferinde tekrar savaşmak yerine seçilen hızı sayfa seviyesinde zorlar.
+- Tema kişiselleştirilebilir: Otomatik (tarayıcı/işletim sistemine uyar), Açık veya Koyu; ayrıca tamamen özel bir vurgu rengi (birkaç hazır seçenek veya renk seçiciden istediğin renk) — hem popup'ta hem video üzerindeki yüzen kontrolde uygulanır.
+
+## Kişiselleştirme
+
+Popup'ın ayarlar ekranı, SpeeVid'i sabit bir varsayılan yerine kendine göre görünüp davranacak şekilde ayarlamana izin verir:
+
+- **Tema** — Otomatik/Açık/Koyu, tarayıcının geri kalanının ayarından bağımsız.
+- **Vurgu rengi** — hazır seçeneklerden birini seç ya da istediğin özel bir rengi seç; mordan yerine her yerde (popup ve video üzerindeki kontrol) bu renk kullanılır.
+- **Kontrolün konumu ve otomatik gizleme**, **klavye kısayolları** (tamamen yeniden atanabilir), **özel hız değeri**, **site bazlı hız sabitleme ve devre dışı bırakma** (`*.example.com` joker karakterleriyle) zaten aynı ayarlar ekranından değiştirilebiliyor.
 
 ## Kurulum (geliştirici modu)
 

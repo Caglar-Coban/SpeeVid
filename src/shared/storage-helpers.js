@@ -4,6 +4,7 @@
   var isNode = typeof module !== 'undefined' && module.exports;
   var i18n = isNode ? require('./i18n.js') : root.SpeeVid && root.SpeeVid.i18n;
   var speedUtils = isNode ? require('./speed-utils.js') : root.SpeeVid && root.SpeeVid.speedUtils;
+  var theme = isNode ? require('./theme.js') : root.SpeeVid && root.SpeeVid.theme;
 
   var DEFAULT_KEY_BINDINGS = { increase: 's', decrease: 'd', reset: 'a', custom: 'q' };
   var DEFAULT_CUSTOM_SPEED = 2;
@@ -102,6 +103,14 @@
     return typeof stored === 'boolean' ? stored : true;
   }
 
+  function mergeTheme(stored) {
+    return typeof stored === 'string' && theme.THEMES.indexOf(stored) !== -1 ? stored : theme.DEFAULT_THEME;
+  }
+
+  function mergeAccentColor(stored) {
+    return theme.isValidHexColor(stored) ? stored.toLowerCase() : theme.DEFAULT_ACCENT_COLOR;
+  }
+
   function mergeSettings(stored) {
     stored = stored || {};
     return {
@@ -117,6 +126,8 @@
       preservePitch: mergePreservePitch(stored.preservePitch),
       aggressiveMode: mergeAggressiveMode(stored.aggressiveMode),
       trackTimeSaved: mergeTrackTimeSaved(stored.trackTimeSaved),
+      theme: mergeTheme(stored.theme),
+      accentColor: mergeAccentColor(stored.accentColor),
     };
   }
 
@@ -149,6 +160,8 @@
     mergePreservePitch: mergePreservePitch,
     mergeAggressiveMode: mergeAggressiveMode,
     mergeTrackTimeSaved: mergeTrackTimeSaved,
+    mergeTheme: mergeTheme,
+    mergeAccentColor: mergeAccentColor,
     mergeSettings: mergeSettings,
     isPlainObject: isPlainObject,
     isValidBackup: isValidBackup,

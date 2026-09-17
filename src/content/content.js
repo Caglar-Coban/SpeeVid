@@ -12,6 +12,7 @@
   var onSettingsChanged = SpeeVid.storage.onSettingsChanged;
   var addTimeSaved = SpeeVid.storage.addTimeSaved;
   var hostMatchesAny = SpeeVid.storageHelpers.hostMatchesAny;
+  var getAccentForeground = SpeeVid.theme.getAccentForeground;
   var MESSAGE_TYPES = SpeeVid.messages.MESSAGE_TYPES;
 
   var HOSTNAME = location.hostname || 'local-file';
@@ -56,6 +57,8 @@
     preservePitch: true,
     aggressiveMode: false,
     trackTimeSaved: true,
+    theme: 'auto',
+    accentColor: '#6552e0',
   };
 
   function sendBadgeUpdate() {
@@ -347,18 +350,36 @@
   // the badge is pinned to) and creates the visual 8px offset with its own
   // transparent padding, so the cursor never crosses a non-hovered gap on
   // its way from the badge to the panel.
+  //
+  // Colors are computed here rather than left to a static stylesheet
+  // because both the theme (auto/light/dark) and the accent color are
+  // user-configurable. "auto" keeps the original prefers-color-scheme
+  // media query (dark base, light override); an explicit light/dark choice
+  // bakes the final colors directly into the base rule instead and skips
+  // the media query entirely, so it can't be second-guessed by the OS
+  // setting. This whole template is rebuilt from scratch whenever theme,
+  // accent color, or position changes (see the onSettingsChanged handlers).
   function getOverlayTemplate(position) {
     var vertical = position.indexOf('top') === 0 ? 'top' : 'bottom';
     var horizontal = position.indexOf('right') !== -1 ? 'right' : 'left';
     var panelOpen = vertical === 'bottom' ? 'bottom: 100%; padding-bottom: 8px;' : 'top: 100%; padding-top: 8px;';
+    var isLight = state.theme === 'light';
+    var isDark = state.theme === 'dark';
+    var baseBg = isLight ? 'rgba(255, 255, 255, 0.95)' : 'rgba(28, 28, 32, 0.9)';
+    var baseFg = isLight ? '#1c1c20' : '#f4f4f5';
+    var baseBorder = isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.12)';
+    var autoLightOverride =
+      !isLight && !isDark
+        ? '@media (prefers-color-scheme: light) { .root { --sv-bg: rgba(255, 255, 255, 0.95); --sv-fg: #1c1c20; --sv-border: rgba(0, 0, 0, 0.08); } }'
+        : '';
     return (
       '<style>' +
       ':host { all: initial; }' +
       '.root { position: absolute; ' + vertical + ': 0; ' + horizontal + ': 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; ' +
       'opacity: 1; transition: opacity 0.25s ease; ' +
-      '--sv-bg: rgba(28, 28, 32, 0.9); --sv-fg: #f4f4f5; --sv-accent: #7c6cf6; --sv-border: rgba(255, 255, 255, 0.12); }' +
+      '--sv-bg: ' + baseBg + '; --sv-fg: ' + baseFg + '; --sv-accent: ' + state.accentColor + '; --sv-accent-fg: ' + getAccentForeground(state.accentColor) + '; --sv-border: ' + baseBorder + '; }' +
       '.root.idle { opacity: 0; }' +
-      '@media (prefers-color-scheme: light) { .root { --sv-bg: rgba(255, 255, 255, 0.95); --sv-fg: #1c1c20; --sv-border: rgba(0, 0, 0, 0.08); } }' +
+      autoLightOverride +
       '.badge { display: flex; align-items: center; justify-content: center; min-width: 52px; height: 26px; padding: 0 8px; border-radius: 999px; background: var(--sv-bg); color: var(--sv-fg); border: 1px solid var(--sv-border); font-size: 12px; font-weight: 600; cursor: default; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); user-select: none; }' +
       '.panel { display: none; position: absolute; ' + panelOpen + ' ' + horizontal + ': 0; flex-direction: column; }' +
       '.panel-inner { display: flex; flex-direction: column; gap: 8px; width: 200px; padding: 12px; border-radius: 14px; background: var(--sv-bg); border: 1px solid var(--sv-border); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3); }' +
@@ -569,6 +590,8 @@
         state.preservePitch = settings.preservePitch;
         state.aggressiveMode = settings.aggressiveMode;
         state.trackTimeSaved = settings.trackTimeSaved;
+        state.theme = settings.theme;
+        state.accentColor = settings.accentColor;
         // A pinned speed is a deliberate per-site default and wins over the
         // "last used on this site" memory; "apply to all tabs" still wins
         // over both, since it's a broader, explicit override.
@@ -620,6 +643,15 @@
           }
           if (typeof changed.trackTimeSaved === 'boolean') {
             state.trackTimeSaved = changed.trackTimeSaved;
+          }
+          if (typeof changed.theme === 'string' || typeof changed.accentColor === 'string') {
+            if (typeof changed.theme === 'string') state.theme = changed.theme;
+            if (typeof changed.accentColor === 'string') state.accentColor = changed.accentColor;
+            // Same as an overlayPosition change: the colors are baked into
+            // each overlay's shadow-DOM CSS at creation time, so a full
+            // rebuild is the only way to pick up new ones.
+            destroyAllOverlays();
+            syncOverlaysWithVideos();
           }
           if (Array.isArray(changed.disabledSites)) {
             var wasDisabled = state.disabled;

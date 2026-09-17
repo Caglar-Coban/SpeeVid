@@ -13,6 +13,8 @@ const {
   mergePreservePitch,
   mergeAggressiveMode,
   mergeTrackTimeSaved,
+  mergeTheme,
+  mergeAccentColor,
   isValidBackup,
   isValidSitePattern,
   hostMatchesPattern,
@@ -44,6 +46,8 @@ test('mergeSettings applies defaults for missing keys', () => {
     preservePitch: true,
     aggressiveMode: false,
     trackTimeSaved: true,
+    theme: 'auto',
+    accentColor: '#6552e0',
   });
 });
 
@@ -63,6 +67,8 @@ test('mergeSettings preserves explicit false values', () => {
       preservePitch: false,
       aggressiveMode: false,
       trackTimeSaved: false,
+      theme: 'auto',
+      accentColor: '#6552e0',
     }
   );
 });
@@ -213,6 +219,28 @@ test('mergeTrackTimeSaved defaults to true for missing/invalid values', () => {
 test('mergeTrackTimeSaved preserves an explicit boolean', () => {
   assert.equal(mergeTrackTimeSaved(true), true);
   assert.equal(mergeTrackTimeSaved(false), false);
+});
+
+test('mergeTheme defaults to auto for missing/invalid values', () => {
+  assert.equal(mergeTheme(undefined), 'auto');
+  assert.equal(mergeTheme('purple'), 'auto');
+  assert.equal(mergeTheme(1), 'auto');
+});
+
+test('mergeTheme preserves a supported theme', () => {
+  assert.equal(mergeTheme('light'), 'light');
+  assert.equal(mergeTheme('dark'), 'dark');
+});
+
+test('mergeAccentColor defaults to the default accent for missing/invalid values', () => {
+  assert.equal(mergeAccentColor(undefined), '#6552e0');
+  assert.equal(mergeAccentColor('not-a-color'), '#6552e0');
+  assert.equal(mergeAccentColor('#fff'), '#6552e0');
+});
+
+test('mergeAccentColor preserves and lowercases a valid hex color', () => {
+  assert.equal(mergeAccentColor('#2E7DD1'), '#2e7dd1');
+  assert.equal(mergeAccentColor('#000000'), '#000000');
 });
 
 test('isValidBackup accepts a well-formed backup', () => {

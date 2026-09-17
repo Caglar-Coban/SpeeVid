@@ -22,6 +22,15 @@ A browser extension (Chrome and Firefox) for controlling video playback speed on
 - Disabled-sites list supports `*.example.com` wildcard entries, matching the base domain and every subdomain in one rule.
 - Optional "time saved" counter (settings screen) tracks how much real time you've saved by watching faster than 1x, with a reset button.
 - Optional "aggressive speed lock" (off by default, settings screen) for sites whose own player keeps clamping the speed back down (some course/LMS platforms) — forces the chosen speed at the page level instead of just re-fighting it on every reset.
+- Theme is customizable: Auto (follows the browser/OS), Light, or Dark, plus a fully custom accent color (a few presets or any color via the picker) — applied to both the popup and the on-video floating control.
+
+## Personalization
+
+The popup's settings screen lets you make SpeeVid look and behave like yours rather than a fixed default:
+
+- **Theme** — Auto/Light/Dark, independent of what the rest of your browser is set to.
+- **Accent color** — pick one of the presets or any custom color; it replaces the purple everywhere (popup and the on-video overlay both use it).
+- **Overlay position and auto-hide**, **keyboard shortcuts** (fully rebindable), **custom speed value**, **per-site speed pins and disables** (with `*.example.com` wildcards) are all already adjustable from the same settings screen.
 
 ## Installation (developer mode)
 

@@ -23,6 +23,7 @@
     "scripts": [
       "src/shared/speed-utils.js",
       "src/shared/i18n.js",
+      "src/shared/theme.js",
       "src/shared/storage-helpers.js",
       "src/shared/storage.js",
       "src/shared/messages.js",
@@ -35,6 +36,7 @@
       "js": [
         "src/shared/speed-utils.js",
         "src/shared/i18n.js",
+        "src/shared/theme.js",
         "src/shared/storage-helpers.js",
         "src/shared/storage.js",
         "src/shared/messages.js",
