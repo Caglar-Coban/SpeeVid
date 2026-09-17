@@ -17,6 +17,11 @@ Herhangi bir sitede video oynatma hızını kontrol etmenizi sağlayan bir taray
 - Açık/koyu sistem temasına otomatik uyum.
 - SpeeVid kurulduğunda/güncellendiğinde zaten açık olan bir sekmede, popup "sayfa desteklenmiyor" demek yerine tek tıkla yenileme seçeneği sunar.
 - Mağaza listelemesi (ad ve açıklama) desteklenen 13 dilin tamamında yerelleştirilmiştir.
+- Hızlandırılmışken ses perdesini korur (footer'daki anahtar) — perdeyi kasıtlı kapatan sitelerde bile "sincap sesi" olmaz.
+- Sadece normal DOM'u değil, açık shadow root'ların içindeki videoları da bulur — oynatıcısı bir web component olan siteler için gerekli.
+- Devre dışı site listesi `*.example.com` joker karakterli girişleri destekler; tek kayıt hem ana domaini hem tüm alt domainleri kapsar.
+- İsteğe bağlı "kazanılan zaman" sayacı (ayarlar ekranı), 1x'ten hızlı izleyerek ne kadar gerçek zaman kazandığını takip eder, sıfırlama düğmesiyle birlikte.
+- İsteğe bağlı "agresif hız kilidi" (varsayılan kapalı, ayarlar ekranı) — kendi oynatıcısı hızı sürekli geri çeken siteler için (bazı kurs/LMS platformları); her seferinde tekrar savaşmak yerine seçilen hızı sayfa seviyesinde zorlar.
 
 ## Kurulum (geliştirici modu)
 

@@ -3,9 +3,11 @@
 
   var PRESETS = SpeeVid.speedUtils.PRESETS;
   var formatSpeed = SpeeVid.speedUtils.formatSpeed;
+  var formatDuration = SpeeVid.speedUtils.formatDuration;
   var clampSpeed = SpeeVid.speedUtils.clampSpeed;
   var getSettings = SpeeVid.storage.getSettings;
   var setSetting = SpeeVid.storage.setSetting;
+  var hostMatchesAny = SpeeVid.storageHelpers.hostMatchesAny;
   var MESSAGE_TYPES = SpeeVid.messages.MESSAGE_TYPES;
   var i18n = SpeeVid.i18n;
 
@@ -30,6 +32,11 @@
   var languageSelect = document.getElementById('languageSelect');
   var overlayPositionSelect = document.getElementById('overlayPositionSelect');
   var overlayAutoHideToggle = document.getElementById('overlayAutoHideToggle');
+  var preservePitchToggle = document.getElementById('preservePitchToggle');
+  var aggressiveModeToggle = document.getElementById('aggressiveModeToggle');
+  var trackTimeSavedToggle = document.getElementById('trackTimeSavedToggle');
+  var timeSavedValueEl = document.getElementById('timeSavedValue');
+  var resetTimeSavedBtn = document.getElementById('resetTimeSavedBtn');
   var customSpeedInput = document.getElementById('customSpeedInput');
   var siteDisableRow = document.getElementById('siteDisableRow');
   var siteDisableToggle = document.getElementById('siteDisableToggle');
@@ -123,6 +130,18 @@
 
   overlayAutoHideToggle.addEventListener('change', function (event) {
     setSetting('overlayAutoHide', event.target.checked);
+  });
+
+  preservePitchToggle.addEventListener('change', function (event) {
+    setSetting('preservePitch', event.target.checked);
+  });
+
+  aggressiveModeToggle.addEventListener('change', function (event) {
+    setSetting('aggressiveMode', event.target.checked);
+  });
+
+  trackTimeSavedToggle.addEventListener('change', function (event) {
+    setSetting('trackTimeSaved', event.target.checked);
   });
 
   customSpeedInput.addEventListener('change', function (event) {
@@ -357,7 +376,7 @@
     disabledSites = updated;
     setSetting('disabledSites', disabledSites);
     renderDisabledSitesList();
-    if (currentHostname) siteDisableToggle.checked = disabledSites.indexOf(currentHostname) !== -1;
+    if (currentHostname) siteDisableToggle.checked = hostMatchesAny(currentHostname, disabledSites);
   }
 
   function normalizeHostInput(value) {
@@ -376,6 +395,13 @@
   siteDisableToggle.addEventListener('change', function (event) {
     if (!currentHostname) return;
     var updated = disabledSites.slice();
+    // Add/remove only the exact current hostname — the checkbox itself has
+    // no way to know which wildcard pattern the user might have meant if
+    // the page is disabled by one (e.g. "*.example.com" covering
+    // "app.example.com"). If a wildcard is what's actually disabling this
+    // page, unchecking here won't remove it; the checkbox will show checked
+    // again next time it's rendered until that rule is edited in the
+    // disabled-sites list below.
     var index = updated.indexOf(currentHostname);
     if (event.target.checked && index === -1) {
       updated.push(currentHostname);
@@ -432,14 +458,38 @@
     syncAllTabsToggle.checked = settings.syncAllTabs;
     overlayPositionSelect.value = settings.overlayPosition;
     overlayAutoHideToggle.checked = settings.overlayAutoHide;
+    preservePitchToggle.checked = settings.preservePitch;
+    aggressiveModeToggle.checked = settings.aggressiveMode;
+    trackTimeSavedToggle.checked = settings.trackTimeSaved;
     customSpeedInput.value = settings.customSpeed;
     keyBindings = settings.keyBindings;
     disabledSites = settings.disabledSites;
-    if (currentHostname) siteDisableToggle.checked = disabledSites.indexOf(currentHostname) !== -1;
+    if (currentHostname) siteDisableToggle.checked = hostMatchesAny(currentHostname, disabledSites);
     renderKeyBindings();
     renderDisabledSitesList();
     refreshPinnedSpeedsList();
+    refreshTimeSaved();
   }
+
+  function renderTimeSaved(totalSeconds) {
+    if (totalSeconds < 60) {
+      timeSavedValueEl.textContent = i18n.translate(currentLanguage, 'timeSavedNone');
+      return;
+    }
+    var duration = formatDuration(totalSeconds);
+    var parts = [];
+    if (duration.hours > 0) parts.push(duration.hours + i18n.translate(currentLanguage, 'unitHours'));
+    parts.push(duration.minutes + i18n.translate(currentLanguage, 'unitMinutes'));
+    timeSavedValueEl.textContent = i18n.translate(currentLanguage, 'timeSavedLabel') + ': ' + parts.join(' ');
+  }
+
+  function refreshTimeSaved() {
+    return SpeeVid.storage.getTimeSaved().then(renderTimeSaved);
+  }
+
+  resetTimeSavedBtn.addEventListener('click', function () {
+    SpeeVid.storage.resetTimeSaved().then(refreshTimeSaved);
+  });
 
   function showBackupStatus(key) {
     backupStatus.textContent = i18n.translate(currentLanguage, key);
@@ -455,8 +505,16 @@
       SpeeVid.storage.getSiteSpeedsMap(),
       SpeeVid.storage.getGlobalSpeed(),
       SpeeVid.storage.getPinnedSpeedsMap(),
+      SpeeVid.storage.getTimeSaved(),
     ]).then(function (results) {
-      var backup = { version: 1, settings: results[0], siteSpeeds: results[1], globalSpeed: results[2], pinnedSpeeds: results[3] };
+      var backup = {
+        version: 1,
+        settings: results[0],
+        siteSpeeds: results[1],
+        globalSpeed: results[2],
+        pinnedSpeeds: results[3],
+        timeSavedSeconds: results[4],
+      };
       var blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
       var url = URL.createObjectURL(blob);
       var link = document.createElement('a');
@@ -524,7 +582,7 @@
       }
       if (currentHostname) {
         siteDisableRow.hidden = false;
-        siteDisableToggle.checked = disabledSites.indexOf(currentHostname) !== -1;
+        siteDisableToggle.checked = hostMatchesAny(currentHostname, disabledSites);
       }
 
       refreshVideoState();

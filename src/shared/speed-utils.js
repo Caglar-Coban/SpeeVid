@@ -18,12 +18,25 @@
     return text + 'x';
   }
 
+  // Splits a duration into whole hours and minutes for display. Seconds are
+  // dropped rather than rounded up into an extra minute, so the "time saved"
+  // counter only ever grows — it never reads a big round number and then
+  // ticks backward a minute right after.
+  function formatDuration(totalSeconds) {
+    var totalMinutes = Math.floor(Math.max(0, totalSeconds) / 60);
+    return {
+      hours: Math.floor(totalMinutes / 60),
+      minutes: totalMinutes % 60,
+    };
+  }
+
   var api = {
     SPEED_MIN: SPEED_MIN,
     SPEED_MAX: SPEED_MAX,
     PRESETS: PRESETS,
     clampSpeed: clampSpeed,
     formatSpeed: formatSpeed,
+    formatDuration: formatDuration,
   };
 
   if (typeof module !== 'undefined' && module.exports) {

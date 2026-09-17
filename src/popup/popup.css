@@ -308,6 +308,21 @@ body {
   letter-spacing: 0.02em;
 }
 
+.time-saved-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--sv-muted);
+}
+
+.time-saved-row .backup-btn {
+  flex: none;
+  padding: 6px 14px;
+}
+
 .disabled-sites-add {
   display: flex;
   gap: 6px;

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { clampSpeed, formatSpeed, PRESETS, SPEED_MIN, SPEED_MAX } = require('../src/shared/speed-utils.js');
+const { clampSpeed, formatSpeed, formatDuration, PRESETS, SPEED_MIN, SPEED_MAX } = require('../src/shared/speed-utils.js');
 
 test('clampSpeed keeps values within bounds', () => {
   assert.equal(clampSpeed(0.05), SPEED_MIN);
@@ -29,4 +29,16 @@ test('PRESETS is sorted, non-empty, and within bounds', () => {
   PRESETS.forEach((p) => {
     assert.ok(p >= SPEED_MIN && p <= SPEED_MAX);
   });
+});
+
+test('formatDuration splits seconds into whole hours and minutes', () => {
+  assert.deepEqual(formatDuration(0), { hours: 0, minutes: 0 });
+  assert.deepEqual(formatDuration(59), { hours: 0, minutes: 0 });
+  assert.deepEqual(formatDuration(60), { hours: 0, minutes: 1 });
+  assert.deepEqual(formatDuration(3600), { hours: 1, minutes: 0 });
+  assert.deepEqual(formatDuration(3600 * 2 + 60 * 15 + 59), { hours: 2, minutes: 15 });
+});
+
+test('formatDuration clamps negative input to zero', () => {
+  assert.deepEqual(formatDuration(-100), { hours: 0, minutes: 0 });
 });

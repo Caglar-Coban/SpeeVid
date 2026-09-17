@@ -113,15 +113,41 @@
 
       <div class="section-label" data-i18n="disabledSitesLabel">Disabled sites</div>
       <div class="disabled-sites-add">
-        <input type="text" id="disabledSiteInput" class="site-input" placeholder="example.com" />
+        <input type="text" id="disabledSiteInput" class="site-input" placeholder="example.com or *.example.com" />
         <button type="button" id="addDisabledSiteBtn" class="backup-btn" data-i18n="addSite">Add</button>
       </div>
       <ul id="disabledSitesList" class="disabled-sites-list"></ul>
+      <p class="keybind-hint" data-i18n="wildcardHint">A `*.example.com` entry also matches example.com itself and any of its subdomains.</p>
 
       <div class="settings-divider"></div>
 
       <div class="section-label" data-i18n="pinnedSpeedsLabel">Pinned site speeds</div>
       <ul id="pinnedSpeedsList" class="disabled-sites-list"></ul>
+
+      <div class="settings-divider"></div>
+
+      <label class="keybind-row">
+        <span data-i18n="toggleAggressiveMode">Aggressive speed lock</span>
+        <span class="switch">
+          <input type="checkbox" id="aggressiveModeToggle" />
+          <span class="slider-switch"></span>
+        </span>
+      </label>
+      <p class="keybind-hint" data-i18n="aggressiveModeHint">Forces the speed on sites that keep resetting it (e.g. some course platforms). May cause issues on a few sites — only turn this on if you need it.</p>
+
+      <div class="settings-divider"></div>
+
+      <label class="keybind-row">
+        <span data-i18n="toggleTrackTimeSaved">Track time saved</span>
+        <span class="switch">
+          <input type="checkbox" id="trackTimeSavedToggle" />
+          <span class="slider-switch"></span>
+        </span>
+      </label>
+      <div class="time-saved-row">
+        <span id="timeSavedValue" data-i18n="timeSavedNone">No time saved yet.</span>
+        <button type="button" id="resetTimeSavedBtn" class="backup-btn" data-i18n="reset">Reset</button>
+      </div>
 
       <div class="settings-divider"></div>
 
@@ -152,6 +178,13 @@
         <span data-i18n="toggleSyncAllTabs">Apply to all tabs</span>
         <span class="switch">
           <input type="checkbox" id="syncAllTabsToggle" />
+          <span class="slider-switch"></span>
+        </span>
+      </label>
+      <label class="toggle-row">
+        <span data-i18n="togglePreservePitch">Preserve audio pitch</span>
+        <span class="switch">
+          <input type="checkbox" id="preservePitchToggle" />
           <span class="slider-switch"></span>
         </span>
       </label>

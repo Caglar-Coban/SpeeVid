@@ -35,6 +35,13 @@ test("firefox background scripts load every shared module plus the chrome servic
   assert.equal(firefoxManifest.background.scripts[firefoxManifest.background.scripts.length - 1], 'src/background/service-worker.js');
 });
 
+test('both manifests declare the same web_accessible_resources', () => {
+  assert.deepEqual(firefoxManifest.web_accessible_resources, chromeManifest.web_accessible_resources);
+  assert.ok(Array.isArray(chromeManifest.web_accessible_resources));
+  const paths = chromeManifest.web_accessible_resources.map((entry) => entry.resources).flat();
+  assert.ok(paths.includes('src/content/main-world-lock.js'));
+});
+
 test('firefox manifest declares a stable gecko extension id', () => {
   assert.equal(typeof firefoxManifest.browser_specific_settings.gecko.id, 'string');
   assert.match(firefoxManifest.browser_specific_settings.gecko.id, /^[^@]+@[^@]+$/);

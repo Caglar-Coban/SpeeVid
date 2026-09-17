@@ -44,6 +44,17 @@
     return typeof stored === 'boolean' ? stored : false;
   }
 
+  // A pattern is either a plain hostname ("example.com") or a `*.` prefixed
+  // wildcard ("*.example.com", matching example.com itself and any of its
+  // subdomains). Only a single leading `*.` is accepted — anything else
+  // (`ex*ample.com`, `**.example.com`, a bare `*`) is rejected rather than
+  // silently doing something the user didn't ask for.
+  function isValidSitePattern(entry) {
+    if (typeof entry !== 'string' || !entry) return false;
+    if (entry.indexOf('*') === -1) return true;
+    return entry.indexOf('*.') === 0 && entry.indexOf('*', 2) === -1 && entry.length > 2;
+  }
+
   function mergeDisabledSites(stored) {
     if (!Array.isArray(stored)) return [];
     var seen = {};
@@ -51,11 +62,44 @@
     stored.forEach(function (entry) {
       if (typeof entry !== 'string' || !entry) return;
       var key = entry.toLowerCase();
+      if (!isValidSitePattern(key)) return;
       if (seen[key]) return;
       seen[key] = true;
       result.push(key);
     });
     return result;
+  }
+
+  // Matches a hostname against a single pattern. A `*.` prefix matches the
+  // base domain itself as well as any subdomain of it, so users don't need
+  // two separate entries for "example.com" and "app.example.com".
+  function hostMatchesPattern(hostname, pattern) {
+    if (!hostname || !pattern) return false;
+    if (pattern.indexOf('*.') === 0) {
+      var base = pattern.slice(2);
+      return hostname === base || hostname.slice(-(base.length + 1)) === '.' + base;
+    }
+    return hostname === pattern;
+  }
+
+  function hostMatchesAny(hostname, patterns) {
+    if (!Array.isArray(patterns)) return false;
+    for (var i = 0; i < patterns.length; i += 1) {
+      if (hostMatchesPattern(hostname, patterns[i])) return true;
+    }
+    return false;
+  }
+
+  function mergePreservePitch(stored) {
+    return typeof stored === 'boolean' ? stored : true;
+  }
+
+  function mergeAggressiveMode(stored) {
+    return typeof stored === 'boolean' ? stored : false;
+  }
+
+  function mergeTrackTimeSaved(stored) {
+    return typeof stored === 'boolean' ? stored : true;
   }
 
   function mergeSettings(stored) {
@@ -70,6 +114,9 @@
       disabledSites: mergeDisabledSites(stored.disabledSites),
       overlayPosition: mergeOverlayPosition(stored.overlayPosition),
       overlayAutoHide: mergeOverlayAutoHide(stored.overlayAutoHide),
+      preservePitch: mergePreservePitch(stored.preservePitch),
+      aggressiveMode: mergeAggressiveMode(stored.aggressiveMode),
+      trackTimeSaved: mergeTrackTimeSaved(stored.trackTimeSaved),
     };
   }
 
@@ -99,9 +146,15 @@
     mergeDisabledSites: mergeDisabledSites,
     mergeOverlayPosition: mergeOverlayPosition,
     mergeOverlayAutoHide: mergeOverlayAutoHide,
+    mergePreservePitch: mergePreservePitch,
+    mergeAggressiveMode: mergeAggressiveMode,
+    mergeTrackTimeSaved: mergeTrackTimeSaved,
     mergeSettings: mergeSettings,
     isPlainObject: isPlainObject,
     isValidBackup: isValidBackup,
+    isValidSitePattern: isValidSitePattern,
+    hostMatchesPattern: hostMatchesPattern,
+    hostMatchesAny: hostMatchesAny,
   };
 
   if (typeof module !== 'undefined' && module.exports) {

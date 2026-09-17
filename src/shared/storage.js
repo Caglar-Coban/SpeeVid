@@ -14,6 +14,9 @@
     disabledSites: [],
     overlayPosition: helpers.DEFAULT_OVERLAY_POSITION,
     overlayAutoHide: false,
+    preservePitch: true,
+    aggressiveMode: false,
+    trackTimeSaved: true,
   };
 
   function safeSpeed(value, fallback) {
@@ -153,6 +156,35 @@
     });
   }
 
+  // A best-effort, purely local "fun stat" — how much real time watching at
+  // faster-than-1x has saved. Multiple frames/tabs can add to it concurrently
+  // via a read-modify-write, so under heavy concurrent activity a handful of
+  // seconds can be lost to a race; that's an acceptable trade-off for a
+  // motivational counter, not something worth an exact-consistency mechanism.
+  function getTimeSaved() {
+    return new Promise(function (resolve) {
+      chrome.storage.local.get({ timeSavedSeconds: 0 }, function (result) {
+        resolve(typeof result.timeSavedSeconds === 'number' ? result.timeSavedSeconds : 0);
+      });
+    });
+  }
+
+  function addTimeSaved(deltaSeconds) {
+    if (!(deltaSeconds > 0)) return Promise.resolve();
+    return new Promise(function (resolve) {
+      chrome.storage.local.get({ timeSavedSeconds: 0 }, function (result) {
+        var current = typeof result.timeSavedSeconds === 'number' ? result.timeSavedSeconds : 0;
+        chrome.storage.local.set({ timeSavedSeconds: current + deltaSeconds }, resolve);
+      });
+    });
+  }
+
+  function resetTimeSaved() {
+    return new Promise(function (resolve) {
+      chrome.storage.local.set({ timeSavedSeconds: 0 }, resolve);
+    });
+  }
+
   // Restores a previously exported backup. Every value is re-validated
   // through the same merge/clamp logic as normal writes, so a hand-edited or
   // stale-format file can never leave storage in an inconsistent state.
@@ -175,12 +207,18 @@
       pinnedSpeeds[key] = safeSpeed(rawPinnedSpeeds[key], 1);
     });
     var globalSpeed = safeSpeed(raw.globalSpeed, 1);
+    var timeSavedSeconds = typeof raw.timeSavedSeconds === 'number' && !Number.isNaN(raw.timeSavedSeconds) && raw.timeSavedSeconds >= 0
+      ? raw.timeSavedSeconds
+      : 0;
 
     return new Promise(function (resolve) {
       chrome.storage.sync.set(sanitizedSettings, function () {
-        chrome.storage.local.set({ siteSpeeds: siteSpeeds, globalSpeed: globalSpeed, pinnedSpeeds: pinnedSpeeds }, function () {
-          resolve(sanitizedSettings);
-        });
+        chrome.storage.local.set(
+          { siteSpeeds: siteSpeeds, globalSpeed: globalSpeed, pinnedSpeeds: pinnedSpeeds, timeSavedSeconds: timeSavedSeconds },
+          function () {
+            resolve(sanitizedSettings);
+          }
+        );
       });
     });
   }
@@ -201,6 +239,9 @@
     getGlobalSpeed: getGlobalSpeed,
     setGlobalSpeed: setGlobalSpeed,
     onGlobalSpeedChanged: onGlobalSpeedChanged,
+    getTimeSaved: getTimeSaved,
+    addTimeSaved: addTimeSaved,
+    resetTimeSaved: resetTimeSaved,
     importSettings: importSettings,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
