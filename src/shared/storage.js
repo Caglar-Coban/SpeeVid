@@ -88,6 +88,16 @@
   // used there). It takes priority over the remembered speed on page load,
   // but ordinary in-session adjustments don't touch it unless the popup's
   // "pin" toggle is checked.
+  //
+  // KNOWN GAP: setPinnedSpeed/removePinnedSpeed below (and setSiteSpeed
+  // above) do an unguarded read-modify-write on the shared map. Two calls
+  // in close succession — e.g. removing two different pinned-site rows in
+  // quick succession from the popup's list — can both read the same
+  // pre-write snapshot, and whichever `set()` lands second silently
+  // overwrites the first's change. Low likelihood (needs two writes within
+  // the same short async round trip) and easy to work around by waiting
+  // for the list to re-render between clicks, but a real race; fixing it
+  // properly needs a write queue/mutex around this map, not implemented.
   function getPinnedSpeed(hostname) {
     var key = helpers.buildSiteSpeedKey(hostname);
     return new Promise(function (resolve) {
@@ -164,6 +174,18 @@
     chrome.storage.onChanged.addListener(function (changes, areaName) {
       if (areaName !== 'local' || !changes.globalSpeed) return;
       callback(changes.globalSpeed.newValue);
+    });
+  }
+
+  // Pinning/unpinning from the popup writes straight to storage with no
+  // message to the content script, so a frame that's already running (the
+  // tab the popup is open for) would otherwise never learn about it for the
+  // rest of that page's lifetime — content.js uses this to keep
+  // state.hasPinnedSpeed live instead of stuck at whatever it was at init().
+  function onPinnedSpeedChanged(callback) {
+    chrome.storage.onChanged.addListener(function (changes, areaName) {
+      if (areaName !== 'local' || !changes.pinnedSpeeds) return;
+      callback(toSiteSpeedsObject(changes.pinnedSpeeds.newValue));
     });
   }
 
@@ -250,6 +272,7 @@
     getGlobalSpeed: getGlobalSpeed,
     setGlobalSpeed: setGlobalSpeed,
     onGlobalSpeedChanged: onGlobalSpeedChanged,
+    onPinnedSpeedChanged: onPinnedSpeedChanged,
     getTimeSaved: getTimeSaved,
     addTimeSaved: addTimeSaved,
     resetTimeSaved: resetTimeSaved,

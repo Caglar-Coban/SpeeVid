@@ -10,8 +10,10 @@
   var setGlobalSpeed = SpeeVid.storage.setGlobalSpeed;
   var onGlobalSpeedChanged = SpeeVid.storage.onGlobalSpeedChanged;
   var onSettingsChanged = SpeeVid.storage.onSettingsChanged;
+  var onPinnedSpeedChanged = SpeeVid.storage.onPinnedSpeedChanged;
   var addTimeSaved = SpeeVid.storage.addTimeSaved;
   var hostMatchesAny = SpeeVid.storageHelpers.hostMatchesAny;
+  var buildSiteSpeedKey = SpeeVid.storageHelpers.buildSiteSpeedKey;
   var getAccentForeground = SpeeVid.theme.getAccentForeground;
   var pickAutoSpeed = SpeeVid.speedUtils.pickAutoSpeed;
   var MESSAGE_TYPES = SpeeVid.messages.MESSAGE_TYPES;
@@ -258,6 +260,15 @@
     script.src = chrome.runtime.getURL('src/content/main-world-lock.js');
     script.addEventListener('load', function () {
       script.remove();
+      // The lock-rate message broadcastLockedRate() sends right after
+      // calling this function (same tick) can easily arrive before this
+      // script's own 'message' listener has registered — loading a script
+      // is asynchronous, so there's no way to guarantee that ordering.
+      // 'load' firing means the whole script already ran synchronously
+      // (listener included), so re-sending here guarantees the lock takes
+      // effect at least once injection is actually done, even if that
+      // first attempt was silently dropped.
+      broadcastLockedRate();
     });
     script.addEventListener('error', function () {
       script.remove();
@@ -340,6 +351,18 @@
     return false;
   }
 
+  // KNOWN GAP: this only catches light-DOM mutations. A MutationObserver's
+  // `subtree` option does not cross shadow boundaries, and `querySelector`
+  // inside nodeListHasVideo() doesn't either — so a video added dynamically
+  // *inside* an already-attached open shadow root (or inside a brand-new
+  // custom element's shadow root, created synchronously as that element is
+  // inserted) is invisible to this observer, even though the initial
+  // scanVideos()/collectVideos() pass at load time does find videos in
+  // shadow roots that already exist. Properly fixing this means observing
+  // every shadow root as it's created (patching Element.prototype.attachShadow
+  // globally, with its own footprint/risk similar to the aggressive-mode
+  // patch) or falling back to periodic re-scanning — neither implemented
+  // yet; left as an accepted limitation for now.
   function observeNewVideos() {
     var observer = new MutationObserver(function (mutations) {
       // The observer only watches childList/subtree, so only added/removed
@@ -459,11 +482,26 @@
   }
 
   function handleFullscreenChange() {
+    var fsEl = document.fullscreenElement;
+    if (fsEl && fsEl.tagName === 'VIDEO') {
+      // A bare <video> promoted to native fullscreen sits alone in the
+      // browser's own top layer — nothing else in the document, including
+      // an overlay appended to document.documentElement, renders above or
+      // even alongside it. There's no DOM location that would actually be
+      // visible here, so hide the overlay instead of rendering it uselessly
+      // behind the video for the whole fullscreen session.
+      destroyAllOverlays();
+      return;
+    }
     var parent = getOverlayParent();
     overlays.forEach(function (overlay) {
       // Re-appending an existing node moves it; it does not clone it.
       parent.appendChild(overlay.host);
     });
+    // Recreates whatever a previous bare-video fullscreen destroyed above;
+    // a harmless no-op otherwise (createOverlay() skips videos that already
+    // have one).
+    syncOverlaysWithVideos();
   }
 
   // Reveals an overlay and (re)starts its auto-hide countdown. Called on
@@ -488,6 +526,12 @@
 
   function createOverlay(video) {
     if (overlays.has(video)) return;
+    // A bare <video> in fullscreen can't render an overlay anyone could see
+    // (see handleFullscreenChange()) — don't create a doomed-invisible one
+    // if something else (e.g. the mutation observer finding a new video)
+    // tries to while that's the current state.
+    var fsEl = document.fullscreenElement;
+    if (fsEl && fsEl.tagName === 'VIDEO') return;
 
     var host = document.createElement('div');
     // `fixed` stays viewport-relative even after handleFullscreenChange()
@@ -713,6 +757,16 @@
             scanVideos().forEach(applyPitchPreference);
           }
           if (typeof changed.aggressiveMode === 'boolean') {
+            if (state.aggressiveMode && !changed.aggressiveMode) {
+              // Turning off: release the lock explicitly before flipping
+              // the flag. broadcastLockedRate() intentionally no-ops when
+              // state.aggressiveMode is false (that's what keeps every
+              // OTHER speed change from paying the postMessage cost for
+              // users who never touch this feature), so calling it after
+              // the flag flips would silently skip sending the release and
+              // leave the page locked at the last rate forever.
+              window.postMessage({ source: 'speevid', type: 'lock-rate', rate: null }, '*');
+            }
             state.aggressiveMode = changed.aggressiveMode;
             broadcastLockedRate();
           }
@@ -765,6 +819,17 @@
           if (!state.syncAllTabs) return;
           if (scanVideos().length === 0) return;
           setSpeed(newSpeed, false);
+        });
+
+        // Pinning/unpinning from the popup writes straight to storage with
+        // no message to this frame, so without this, pinning a speed while
+        // this exact page is already open would never stop auto
+        // speed-by-duration from overriding it on the next video/duration
+        // change — state.hasPinnedSpeed would stay stuck at whatever it was
+        // when init() ran.
+        onPinnedSpeedChanged(function (pinnedSpeeds) {
+          var key = buildSiteSpeedKey(HOSTNAME);
+          state.hasPinnedSpeed = Object.prototype.hasOwnProperty.call(pinnedSpeeds, key);
         });
       })
       .catch(function (err) {
