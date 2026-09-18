@@ -29,6 +29,10 @@
   var BADGE_HEIGHT = 26;
   var MARGIN = 8;
   var AUTO_HIDE_DELAY_MS = 1500;
+  // One entry per <video> found on the page, not one visible badge per
+  // entry — positionOverlays() only ever shows the single "primary" video's
+  // host (largest visible area) and keeps the rest display:none. See
+  // positionOverlays() for why.
   var overlays = new Map();
   var rafId = null;
   var PERSIST_DEBOUNCE_MS = 300;
@@ -625,9 +629,22 @@
     });
   }
 
+  // A page can have more than one real <video> at once — a hover-preview
+  // thumbnail, an ad player, a crossfade during autoplay-next, a live
+  // scrubbing/seek preview, a duplicate PiP element — and createOverlay()
+  // gives each of them its own host (see syncOverlaysWithVideos()). Showing
+  // a badge for every one of them looked like a bug (two floating speed
+  // indicators on screen). Only ONE badge should ever be visible: whichever
+  // currently-visible video covers the most viewport area is treated as
+  // "the" video for this frame, and every other video's host is forced to
+  // display:none. Hosts for the non-primary videos are kept alive (not
+  // destroyed) so nothing has to be rebuilt the moment the primary video
+  // changes (e.g. scrolling a different video into view).
   function positionOverlays() {
     var vertical = state.overlayPosition.indexOf('top') === 0 ? 'top' : 'bottom';
     var horizontal = state.overlayPosition.indexOf('right') !== -1 ? 'right' : 'left';
+
+    var candidates = [];
     overlays.forEach(function (overlay, video) {
       if (!video.isConnected) {
         destroyOverlay(video);
@@ -641,8 +658,24 @@
         rect.right > 0 &&
         rect.top < window.innerHeight &&
         rect.left < window.innerWidth;
-      overlay.host.style.display = visible ? 'block' : 'none';
       if (!visible) return;
+      var visibleWidth = Math.max(0, Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0));
+      var visibleHeight = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
+      candidates.push({ video: video, rect: rect, area: visibleWidth * visibleHeight });
+    });
+
+    var primary = null;
+    candidates.forEach(function (candidate) {
+      if (!primary || candidate.area > primary.area) primary = candidate;
+    });
+
+    overlays.forEach(function (overlay, video) {
+      if (!primary || video !== primary.video) {
+        overlay.host.style.display = 'none';
+        return;
+      }
+      overlay.host.style.display = 'block';
+      var rect = primary.rect;
       overlay.host.style.top = Math.round(vertical === 'top' ? rect.top + MARGIN : rect.bottom - BADGE_HEIGHT - MARGIN) + 'px';
       overlay.host.style.left = Math.round(horizontal === 'left' ? rect.left + MARGIN : rect.right - BADGE_WIDTH - MARGIN) + 'px';
     });

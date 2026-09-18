@@ -9,5 +9,8 @@
     "build:chrome": "node tools/build-chrome.js",
     "package:firefox": "node tools/build-firefox.js --zip",
     "package:chrome": "node tools/build-chrome.js --zip"
+  },
+  "devDependencies": {
+    "jsdom": "^29.1.1"
   }
 }
