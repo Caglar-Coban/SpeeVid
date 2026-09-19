@@ -29,6 +29,39 @@
     return merged;
   }
 
+  // On a non-Latin keyboard layout (Russian, Arabic, Greek, Hindi, kana,
+  // hangul, ...) — or while an IME is active — the physical S key reports
+  // event.key as 'ы' / 'س' / 'Process', so a binding stored as 's' would never
+  // fire for those users. event.code names the physical key regardless of
+  // layout, so for a physical letter key (KeyA-KeyZ) we can recover the Latin
+  // letter printed on it. Layouts that are still Latin script (Dvorak, Turkish,
+  // AZERTY, ...) are deliberately left alone: there event.key is what the user
+  // sees on screen and expects, and remapping by position would be wrong.
+  // 0x24f is the end of Latin Extended-B, which covers 'ı', 'ş', 'ğ', 'é'...
+  function latinFallbackKey(event) {
+    var match = /^Key([A-Z])$/.exec(typeof event.code === 'string' ? event.code : '');
+    if (!match) return null;
+    var key = typeof event.key === 'string' ? event.key.toLowerCase() : '';
+    var nonLatin = key === 'process' || key === 'unidentified' || (key.length === 1 && key.charCodeAt(0) > 0x24f);
+    return nonLatin ? match[1].toLowerCase() : null;
+  }
+
+  // Bindings are stored as lowercased event.key values. A binding that was
+  // saved as the literal non-Latin character before this fallback existed
+  // still matches through the first comparison.
+  function matchesKeyBinding(event, binding) {
+    var key = typeof event.key === 'string' ? event.key.toLowerCase() : '';
+    if (key === binding) return true;
+    return latinFallbackKey(event) === binding;
+  }
+
+  // What to store when the user rebinds a shortcut: the layout-independent
+  // Latin letter where there is one, so the binding keeps working if they
+  // later switch keyboard layouts.
+  function bindingKeyFromEvent(event) {
+    return latinFallbackKey(event) || String(event.key).toLowerCase();
+  }
+
   function mergeLanguage(stored) {
     var lang = typeof stored === 'string' ? stored : '';
     return i18n.isSupportedLanguage(lang) ? lang : i18n.DEFAULT_LANGUAGE;
@@ -108,6 +141,12 @@
     return typeof stored === 'boolean' ? stored : true;
   }
 
+  // Off by default: sites also use hidden <audio> elements for notification
+  // and effect sounds, which shouldn't be sped up just because a video is.
+  function mergeControlAudio(stored) {
+    return typeof stored === 'boolean' ? stored : false;
+  }
+
   function mergeAutoSpeedByDuration(stored) {
     return typeof stored === 'boolean' ? stored : false;
   }
@@ -155,6 +194,7 @@
       autoSpeedThresholdMinutes: mergeAutoSpeedThresholdMinutes(stored.autoSpeedThresholdMinutes),
       autoSpeedShortSpeed: mergeAutoSpeedShortSpeed(stored.autoSpeedShortSpeed),
       autoSpeedLongSpeed: mergeAutoSpeedLongSpeed(stored.autoSpeedLongSpeed),
+      controlAudio: mergeControlAudio(stored.controlAudio),
     };
   }
 
@@ -178,6 +218,8 @@
     DEFAULT_OVERLAY_POSITION: DEFAULT_OVERLAY_POSITION,
     buildSiteSpeedKey: buildSiteSpeedKey,
     mergeKeyBindings: mergeKeyBindings,
+    matchesKeyBinding: matchesKeyBinding,
+    bindingKeyFromEvent: bindingKeyFromEvent,
     mergeLanguage: mergeLanguage,
     mergeCustomSpeed: mergeCustomSpeed,
     mergeSyncAllTabs: mergeSyncAllTabs,
@@ -193,6 +235,7 @@
     mergeAutoSpeedThresholdMinutes: mergeAutoSpeedThresholdMinutes,
     mergeAutoSpeedShortSpeed: mergeAutoSpeedShortSpeed,
     mergeAutoSpeedLongSpeed: mergeAutoSpeedLongSpeed,
+    mergeControlAudio: mergeControlAudio,
     DEFAULT_AUTO_SPEED_THRESHOLD_MINUTES: DEFAULT_AUTO_SPEED_THRESHOLD_MINUTES,
     AUTO_SPEED_THRESHOLD_MIN_MINUTES: AUTO_SPEED_THRESHOLD_MIN_MINUTES,
     AUTO_SPEED_THRESHOLD_MAX_MINUTES: AUTO_SPEED_THRESHOLD_MAX_MINUTES,

@@ -45,6 +45,7 @@
   var preservePitchToggle = document.getElementById('preservePitchToggle');
   var aggressiveModeToggle = document.getElementById('aggressiveModeToggle');
   var trackTimeSavedToggle = document.getElementById('trackTimeSavedToggle');
+  var controlAudioToggle = document.getElementById('controlAudioToggle');
   var timeSavedValueEl = document.getElementById('timeSavedValue');
   var resetTimeSavedBtn = document.getElementById('resetTimeSavedBtn');
   var customSpeedInput = document.getElementById('customSpeedInput');
@@ -237,6 +238,10 @@
     setSetting('trackTimeSaved', event.target.checked);
   });
 
+  controlAudioToggle.addEventListener('change', function (event) {
+    setSetting('controlAudio', event.target.checked);
+  });
+
   customSpeedInput.addEventListener('change', function (event) {
     var clamped = clampSpeed(Number(event.target.value));
     customSpeedInput.value = String(clamped);
@@ -316,7 +321,7 @@
   document.addEventListener('keydown', function (event) {
     if (listeningAction === null) return;
     event.preventDefault();
-    var key = event.key.toLowerCase();
+    var key = SpeeVid.storageHelpers.bindingKeyFromEvent(event);
     if (BLOCKED_KEYS.indexOf(key) !== -1) return;
 
     var action = listeningAction;
@@ -602,6 +607,7 @@
     preservePitchToggle.checked = settings.preservePitch;
     aggressiveModeToggle.checked = settings.aggressiveMode;
     trackTimeSavedToggle.checked = settings.trackTimeSaved;
+    controlAudioToggle.checked = settings.controlAudio;
     applyTheme(settings.theme);
     applyAccentColor(settings.accentColor);
     autoSpeedByDurationToggle.checked = settings.autoSpeedByDuration;

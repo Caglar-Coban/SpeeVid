@@ -13,6 +13,7 @@
   var onPinnedSpeedChanged = SpeeVid.storage.onPinnedSpeedChanged;
   var addTimeSaved = SpeeVid.storage.addTimeSaved;
   var hostMatchesAny = SpeeVid.storageHelpers.hostMatchesAny;
+  var matchesKeyBinding = SpeeVid.storageHelpers.matchesKeyBinding;
   var buildSiteSpeedKey = SpeeVid.storageHelpers.buildSiteSpeedKey;
   var getAccentForeground = SpeeVid.theme.getAccentForeground;
   var pickAutoSpeed = SpeeVid.speedUtils.pickAutoSpeed;
@@ -29,6 +30,11 @@
   var BADGE_HEIGHT = 26;
   var MARGIN = 8;
   var AUTO_HIDE_DELAY_MS = 1500;
+  var COVER_CHECK_INTERVAL_MS = 150;
+  // Things that mean "a dialog/menu is open over the page" (see
+  // isBadgeCovered()).
+  var MODAL_SELECTOR = '[aria-modal="true"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], dialog[open]';
+  var coverCheck = { at: 0, video: null, covered: false };
   // One entry per <video> found on the page, not one visible badge per
   // entry — positionOverlays() only ever shows the single "primary" video's
   // host (largest visible area) and keeps the rest display:none. See
@@ -38,6 +44,8 @@
   var PERSIST_DEBOUNCE_MS = 300;
   var persistTimer = null;
   var boundVideos = new WeakSet();
+  // A plain Set (not weak) so hasManualOverride() can enumerate and prune it.
+  var manualOverrideVideos = new Set();
   var rateFightState = new WeakMap();
   var RATE_FIGHT_WINDOW_MS = 2000;
   var RATE_FIGHT_LIMIT = 6;
@@ -70,6 +78,7 @@
     autoSpeedThresholdMinutes: 20,
     autoSpeedShortSpeed: 1,
     autoSpeedLongSpeed: 2,
+    controlAudio: false,
     // Whether this exact site has a *pinned* speed (a deliberate, visible,
     // removable choice in settings) — computed once at init() from storage,
     // not re-derived live. Only a pin outranks auto speed-by-duration.
@@ -97,19 +106,42 @@
   // Closed shadow roots (`attachShadow({ mode: 'closed' })`) are invisible to
   // any script outside the component that made them, including this one —
   // there's no way to reach into those from a content script.
-  function collectVideos(root, results) {
-    var videos = root.querySelectorAll('video');
+  function collectVideos(root, results, selector) {
+    var videos = root.querySelectorAll(selector);
     for (var i = 0; i < videos.length; i += 1) results.push(videos[i]);
     var all = root.querySelectorAll('*');
     for (var i = 0; i < all.length; i += 1) {
-      if (all[i].shadowRoot) collectVideos(all[i].shadowRoot, results);
+      if (all[i].shadowRoot) collectVideos(all[i].shadowRoot, results, selector);
     }
   }
 
+  // <video> elements only — what gets a floating badge. Audio never does:
+  // it has no picture to sit over, and a hidden <audio> has no position.
   function scanVideos() {
     var results = [];
-    collectVideos(document, results);
+    collectVideos(document, results, 'video');
     return results;
+  }
+
+  // What the speed is applied to: every <video>, plus <audio> when the user
+  // opted in ("control audio", off by default because sites also use hidden
+  // <audio> elements for notification/effect sounds that shouldn't speed up).
+  function mediaSelector() {
+    return state.controlAudio ? 'video, audio' : 'video';
+  }
+
+  function scanMedia() {
+    var results = [];
+    collectVideos(document, results, mediaSelector());
+    return results;
+  }
+
+  // Filters an already-scanned media list down to <video> so callers that
+  // need both lists still only pay for one walk of the page.
+  function onlyVideos(media) {
+    return media.filter(function (el) {
+      return el.tagName === 'VIDEO';
+    });
   }
 
   // Some sites (Netflix historically did this) run their own `ratechange`
@@ -144,6 +176,29 @@
     video.mozPreservesPitch = state.preservePitch;
   }
 
+  // A speed the user picked by hand (popup, overlay slider/presets, keyboard)
+  // must not be second-guessed by auto speed-by-duration for that video —
+  // otherwise every later 'durationchange' (streaming players fire it
+  // repeatedly) or a second <video> loading metadata (hover preview, ad)
+  // silently snaps the speed back to the auto value. The speed is one
+  // frame-wide value, so the override is frame-wide too: it holds while ANY
+  // still-attached video was set by hand, and each video's own override ends
+  // when it starts loading a new source ('emptied', see bindVideo()) so the
+  // next piece of content is judged on its own length again. Videos that
+  // left the DOM are dropped so a finished video can't pin the override.
+  function markManualOverride(videos) {
+    (videos || scanMedia()).forEach(function (video) {
+      manualOverrideVideos.add(video);
+    });
+  }
+
+  function hasManualOverride() {
+    manualOverrideVideos.forEach(function (video) {
+      if (!video.isConnected) manualOverrideVideos.delete(video);
+    });
+    return manualOverrideVideos.size > 0;
+  }
+
   // Auto speed-by-duration only ever proposes a speed; it never overrides a
   // deliberate choice. A *pinned* speed for this exact site always wins
   // (checked once at init(), via state.hasPinnedSpeed), as does "apply to
@@ -159,6 +214,7 @@
   function maybeAutoSetSpeedByDuration(video) {
     if (!state.autoSpeedByDuration) return;
     if (state.syncAllTabs || state.hasPinnedSpeed) return;
+    if (hasManualOverride()) return;
     if (!isFinite(video.duration) || video.duration <= 0) return;
     var target = pickAutoSpeed(video.duration, state.autoSpeedThresholdMinutes, state.autoSpeedShortSpeed, state.autoSpeedLongSpeed);
     if (target === state.speed) return;
@@ -169,11 +225,20 @@
   // into an existing <video> element (e.g. autoplay/next-episode on an SPA,
   // which reuses the element so our mutation observer never fires). Watching
   // these events lets us reassert our speed instead of silently losing it.
+  // Listeners stay attached to an <audio> after the user turns "control
+  // audio" off (there's no cheap way to unbind them by element), so every
+  // handler checks this first — otherwise 'ratechange' would immediately
+  // re-apply our speed to the audio we just handed back.
+  function isControlled(media) {
+    return media.tagName !== 'AUDIO' || state.controlAudio;
+  }
+
   function bindVideo(video) {
     if (boundVideos.has(video)) return;
     boundVideos.add(video);
     ['loadedmetadata', 'durationchange', 'playing', 'ratechange'].forEach(function (evt) {
       video.addEventListener(evt, function () {
+        if (!isControlled(video)) return;
         // Some players (adaptive/streaming ones especially) report an
         // unusable duration (Infinity/NaN) at 'loadedmetadata' and only
         // update it later via a separate 'durationchange' — without also
@@ -186,8 +251,14 @@
         applyPitchPreference(video);
       });
     });
+    // The element is starting to load different media (SPA autoplay-next
+    // reuses it), so a manual speed chosen for the previous content no longer
+    // applies to what's about to play.
+    video.addEventListener('emptied', function () {
+      manualOverrideVideos.delete(video);
+    });
     video.addEventListener('timeupdate', function () {
-      trackTimeSaved(video);
+      if (isControlled(video)) trackTimeSaved(video);
     });
     // The page's own script may have already loaded this video's metadata
     // before we got here, in which case 'loadedmetadata' already fired and
@@ -195,9 +266,11 @@
     if (video.readyState >= HTMLMediaElement.HAVE_METADATA) maybeAutoSetSpeedByDuration(video);
   }
 
-  function applySpeedToAllVideos() {
+  // `videos` lets a caller that already scanned share that result instead of
+  // paying for another full-DOM walk (see scanVideos()).
+  function applySpeedToAllVideos(videos) {
     if (state.disabled) return;
-    scanVideos().forEach(function (video) {
+    (videos || scanMedia()).forEach(function (video) {
       bindVideo(video);
       video.playbackRate = state.speed;
       applyPitchPreference(video);
@@ -298,7 +371,7 @@
       persistTimer = null;
       // Never persist a speed for a frame that has no video of its own
       // (e.g. an unrelated ad iframe that received the SET_SPEED broadcast).
-      if (scanVideos().length === 0) return;
+      if (scanMedia().length === 0) return;
       // Only the top frame writes to storage. SET_SPEED is broadcast to
       // every frame so an embedded player (e.g. a YouTube iframe on someone
       // else's site) still responds, but persisting from that frame would
@@ -313,11 +386,18 @@
   function setSpeed(rawSpeed, persist) {
     if (persist === undefined) persist = true;
     state.speed = clampSpeed(rawSpeed);
-    applySpeedToAllVideos();
+    // One scan shared by everything below — dragging the overlay slider
+    // calls this many times a second.
+    var videos = scanMedia();
+    applySpeedToAllVideos(videos);
     broadcastLockedRate();
     updateAllOverlays();
     sendBadgeUpdate();
     if (persist) {
+      // Every caller passing persist=true is an explicit user action (popup
+      // message, overlay slider/presets, keyboard); the automatic paths (sync,
+      // auto speed) pass false. So "persist" also means "user chose this".
+      markManualOverride(videos);
       schedulePersist();
     }
   }
@@ -326,7 +406,7 @@
     if (message.type === MESSAGE_TYPES.GET_STATE) {
       sendResponse({
         speed: state.speed,
-        videoCount: scanVideos().length,
+        videoCount: scanMedia().length,
         floatingEnabled: state.floatingEnabled,
         disabled: state.disabled,
       });
@@ -342,11 +422,12 @@
 
   function nodeListHasVideo(nodes) {
     if (!nodes) return false;
+    var selector = mediaSelector();
     for (var i = 0; i < nodes.length; i += 1) {
       var node = nodes[i];
       if (!node || node.nodeType !== 1) continue;
-      if (node.tagName === 'VIDEO') return true;
-      if (node.querySelector && node.querySelector('video')) return true;
+      if (node.tagName === 'VIDEO' || (state.controlAudio && node.tagName === 'AUDIO')) return true;
+      if (node.querySelector && node.querySelector(selector)) return true;
     }
     return false;
   }
@@ -377,8 +458,9 @@
       // The observer only watches childList/subtree, so only added/removed
       // nodes can ever change the set of videos. Skip everything else.
       if (!mutationsTouchVideo(mutations)) return;
-      applySpeedToAllVideos();
-      syncOverlaysWithVideos();
+      var media = scanMedia();
+      applySpeedToAllVideos(media);
+      syncOverlaysWithVideos(onlyVideos(media));
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
   }
@@ -416,17 +498,30 @@
     if (!state.shortcutsEnabled) return;
     if (event.ctrlKey || event.altKey || event.metaKey) return;
     if (isEditableTarget(getRealTarget(event))) return;
-    if (scanVideos().length === 0) return;
 
-    var key = event.key.toLowerCase();
+    // Work out which action (if any) this key is bound to BEFORE looking for
+    // videos: scanMedia() walks every element on the page, and this handler
+    // runs for every key press anywhere on every page.
     var bindings = state.keyBindings;
-    if (key === bindings.increase) {
+    var action = matchesKeyBinding(event, bindings.increase)
+      ? 'increase'
+      : matchesKeyBinding(event, bindings.decrease)
+      ? 'decrease'
+      : matchesKeyBinding(event, bindings.reset)
+      ? 'reset'
+      : matchesKeyBinding(event, bindings.custom)
+      ? 'custom'
+      : null;
+    if (action === null) return;
+    if (scanMedia().length === 0) return;
+
+    if (action === 'increase') {
       setSpeed(state.speed + 0.1);
-    } else if (key === bindings.decrease) {
+    } else if (action === 'decrease') {
       setSpeed(state.speed - 0.1);
-    } else if (key === bindings.reset) {
+    } else if (action === 'reset') {
       jumpToSpeed(1);
-    } else if (key === bindings.custom) {
+    } else {
       jumpToSpeed(state.customSpeed);
     }
   }
@@ -640,6 +735,92 @@
   // display:none. Hosts for the non-primary videos are kept alive (not
   // destroyed) so nothing has to be rebuilt the moment the primary video
   // changes (e.g. scrolling a different video into view).
+  function composedContains(ancestor, node) {
+    while (node) {
+      if (node === ancestor) return true;
+      // ShadowRoot has no parentNode but does have a host to keep climbing.
+      node = node.parentNode || node.host;
+    }
+    return false;
+  }
+
+  function isOwnOverlayNode(el) {
+    var own = false;
+    overlays.forEach(function (overlay) {
+      if (!own && composedContains(overlay.host, el)) own = true;
+    });
+    return own;
+  }
+
+  // document.elementsFromPoint() reports an open shadow host but not what's
+  // inside it, so descend into each (other than our own overlay hosts).
+  // Inner elements are listed before their host, matching paint order.
+  function elementsAtPoint(root, x, y) {
+    var out = [];
+    root.elementsFromPoint(x, y).forEach(function (el) {
+      if (el.shadowRoot && typeof el.shadowRoot.elementsFromPoint === 'function' && !isOwnOverlayNode(el)) {
+        out.push.apply(out, elementsAtPoint(el.shadowRoot, x, y));
+      }
+      out.push(el);
+    });
+    return out;
+  }
+
+  function isRendered(el) {
+    return el.getClientRects().length > 0;
+  }
+
+  function isViewportBackdrop(el) {
+    if (getComputedStyle(el).position !== 'fixed') return false;
+    var rect = el.getBoundingClientRect();
+    return rect.width >= window.innerWidth * 0.9 && rect.height >= window.innerHeight * 0.9;
+  }
+
+  // True when a visible dialog/menu exists that the video is not part of.
+  function pageHasModal(video) {
+    var modals = document.querySelectorAll(MODAL_SELECTOR);
+    for (var i = 0; i < modals.length; i += 1) {
+      if (!composedContains(modals[i], video) && isRendered(modals[i])) return true;
+    }
+    return false;
+  }
+
+  // The badge is `position: fixed` with the maximum z-index, so no page
+  // element can ever stack above it — a site's settings menu or modal opened
+  // over the video used to render *underneath* the badge. Since we can't
+  // outrank it, hide the badge instead while such a thing sits between it
+  // and the video. Walks what the page stacks at the badge's position, from
+  // the top down until it reaches the video (or something containing it —
+  // everything after that is beneath the video, so irrelevant).
+  //
+  // Deliberately narrow, because a false positive silently removes the
+  // badge: ordinary player controls above the video (a YouTube-style bar at
+  // the same corner) must NOT count. Only two things do:
+  //   1. semantic dialogs/menus (MODAL_SELECTOR) that don't contain the video;
+  //   2. a near-full-viewport `position: fixed` layer (a dimming backdrop,
+  //      which is usually a *sibling* of the role=dialog element, not inside
+  //      it) — but only when a visible modal actually exists on the page, so
+  //      unrelated full-screen site chrome is left alone.
+  // Sites whose modals use no ARIA roles and no full-viewport backdrop are
+  // not detected. Only the badge's center is sampled.
+  function isBadgeCovered(video, x, y) {
+    if (typeof document.elementsFromPoint !== 'function') return false;
+    var stack = elementsAtPoint(document, x, y);
+    var modalPresent = null;
+    for (var i = 0; i < stack.length; i += 1) {
+      var el = stack[i];
+      if (isOwnOverlayNode(el)) continue;
+      if (composedContains(el, video)) break;
+      var modal = el.closest ? el.closest(MODAL_SELECTOR) : null;
+      if (modal && !composedContains(modal, video)) return true;
+      if (isViewportBackdrop(el)) {
+        if (modalPresent === null) modalPresent = pageHasModal(video);
+        if (modalPresent) return true;
+      }
+    }
+    return false;
+  }
+
   function positionOverlays() {
     var vertical = state.overlayPosition.indexOf('top') === 0 ? 'top' : 'bottom';
     var horizontal = state.overlayPosition.indexOf('right') !== -1 ? 'right' : 'left';
@@ -674,10 +855,24 @@
         overlay.host.style.display = 'none';
         return;
       }
-      overlay.host.style.display = 'block';
       var rect = primary.rect;
-      overlay.host.style.top = Math.round(vertical === 'top' ? rect.top + MARGIN : rect.bottom - BADGE_HEIGHT - MARGIN) + 'px';
-      overlay.host.style.left = Math.round(horizontal === 'left' ? rect.left + MARGIN : rect.right - BADGE_WIDTH - MARGIN) + 'px';
+      var top = Math.round(vertical === 'top' ? rect.top + MARGIN : rect.bottom - BADGE_HEIGHT - MARGIN);
+      var left = Math.round(horizontal === 'left' ? rect.left + MARGIN : rect.right - BADGE_WIDTH - MARGIN);
+      overlay.host.style.top = top + 'px';
+      overlay.host.style.left = left + 'px';
+
+      // Hit-testing is comparatively costly and a menu opening doesn't need
+      // frame-accurate reaction, so re-check a few times a second rather
+      // than on every rAF tick (unless the primary video just changed).
+      var now = Date.now();
+      if (coverCheck.video !== video || now - coverCheck.at >= COVER_CHECK_INTERVAL_MS) {
+        coverCheck = {
+          at: now,
+          video: video,
+          covered: isBadgeCovered(video, left + BADGE_WIDTH / 2, top + BADGE_HEIGHT / 2),
+        };
+      }
+      overlay.host.style.display = coverCheck.covered ? 'none' : 'block';
     });
   }
 
@@ -700,12 +895,12 @@
     }
   }
 
-  function syncOverlaysWithVideos() {
+  function syncOverlaysWithVideos(scanned) {
     if (state.disabled || !state.floatingEnabled) {
       destroyAllOverlays();
       return;
     }
-    var videos = scanVideos();
+    var videos = scanned || scanVideos();
     videos.forEach(function (video) {
       createOverlay(video);
     });
@@ -740,6 +935,7 @@
         state.autoSpeedThresholdMinutes = settings.autoSpeedThresholdMinutes;
         state.autoSpeedShortSpeed = settings.autoSpeedShortSpeed;
         state.autoSpeedLongSpeed = settings.autoSpeedLongSpeed;
+        state.controlAudio = settings.controlAudio;
         // Only a pin blocks auto speed-by-duration going forward (see
         // maybeAutoSetSpeedByDuration()) — the initial state.speed guess
         // below still prefers the remembered site speed over a flat 1x,
@@ -801,7 +997,7 @@
           }
           if (typeof changed.preservePitch === 'boolean') {
             state.preservePitch = changed.preservePitch;
-            scanVideos().forEach(applyPitchPreference);
+            scanMedia().forEach(applyPitchPreference);
           }
           if (typeof changed.aggressiveMode === 'boolean') {
             if (state.aggressiveMode && !changed.aggressiveMode) {
@@ -839,16 +1035,34 @@
             if (typeof changed.autoSpeedThresholdMinutes === 'number') state.autoSpeedThresholdMinutes = changed.autoSpeedThresholdMinutes;
             if (typeof changed.autoSpeedShortSpeed === 'number') state.autoSpeedShortSpeed = changed.autoSpeedShortSpeed;
             if (typeof changed.autoSpeedLongSpeed === 'number') state.autoSpeedLongSpeed = changed.autoSpeedLongSpeed;
+            // Changing the auto settings is itself a deliberate act, so it
+            // supersedes any earlier manual speed — otherwise the new
+            // setting would appear to do nothing until the next page load.
+            manualOverrideVideos.clear();
             // Re-evaluate immediately for whatever's already loaded, rather
             // than waiting for the next 'loadedmetadata' (which may never
             // come again for an already-playing video).
-            if (state.autoSpeedByDuration) scanVideos().forEach(maybeAutoSetSpeedByDuration);
+            if (state.autoSpeedByDuration) scanMedia().forEach(maybeAutoSetSpeedByDuration);
+          }
+          if (typeof changed.controlAudio === 'boolean') {
+            state.controlAudio = changed.controlAudio;
+            if (state.controlAudio) {
+              // Reach the <audio> elements that were being ignored a moment ago.
+              applySpeedToAllVideos();
+            } else {
+              // Give back the ones we were driving; <video> is unaffected.
+              var audios = [];
+              collectVideos(document, audios, 'audio');
+              audios.forEach(function (audio) {
+                audio.playbackRate = 1;
+              });
+            }
           }
           if (Array.isArray(changed.disabledSites)) {
             var wasDisabled = state.disabled;
             state.disabled = hostMatchesAny(HOSTNAME, changed.disabledSites);
             if (state.disabled && !wasDisabled) {
-              scanVideos().forEach(function (video) {
+              scanMedia().forEach(function (video) {
                 video.playbackRate = 1;
               });
               destroyAllOverlays();
@@ -864,7 +1078,7 @@
 
         onGlobalSpeedChanged(function (newSpeed) {
           if (!state.syncAllTabs) return;
-          if (scanVideos().length === 0) return;
+          if (scanMedia().length === 0) return;
           setSpeed(newSpeed, false);
         });
 
