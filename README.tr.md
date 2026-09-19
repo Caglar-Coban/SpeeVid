@@ -23,7 +23,9 @@ Herhangi bir sitede video oynatma hızını kontrol etmenizi sağlayan bir taray
 - İsteğe bağlı "kazanılan zaman" sayacı (ayarlar ekranı), 1x'ten hızlı izleyerek ne kadar gerçek zaman kazandığını takip eder, sıfırlama düğmesiyle birlikte.
 - İsteğe bağlı "agresif hız kilidi" (varsayılan kapalı, ayarlar ekranı) — kendi oynatıcısı hızı sürekli geri çeken siteler için (bazı kurs/LMS platformları); her seferinde tekrar savaşmak yerine seçilen hızı sayfa seviyesinde zorlar.
 - Tema kişiselleştirilebilir: Otomatik (tarayıcı/işletim sistemine uyar), Açık veya Koyu; ayrıca tamamen özel bir vurgu rengi (birkaç hazır seçenek veya renk seçiciden istediğin renk) — hem popup'ta hem video üzerindeki yüzen kontrolde uygulanır.
-- İsteğe bağlı "video uzunluğuna göre otomatik hız" (varsayılan kapalı, ayarlar ekranı): ayarlanabilir bir eşik süreden (varsayılan 20 dk) uzun videolar ayarlanabilir bir "uzun" hızla (varsayılan 2x), kısa olanlar ayarlanabilir bir "kısa" hızla (varsayılan 1x) başlar. Yalnızca bir pin veya "tüm sekmelere uygula" bunun önüne geçer — o sitede hatırlanan son hız geçmez, böylece ilk manuel ayardan sonra takılıp kalmak yerine her video için yeniden karar verir.
+- İsteğe bağlı "video uzunluğuna göre otomatik hız" (varsayılan kapalı, ayarlar ekranı): ayarlanabilir bir eşik süreden (varsayılan 20 dk) uzun videolar ayarlanabilir bir "uzun" hızla (varsayılan 2x), kısa olanlar ayarlanabilir bir "kısa" hızla (varsayılan 1x) başlar. Bir pin veya "tüm sekmelere uygula" bunun önüne geçer, elle ayarladığın hız da öyle (popup, video üzerindeki kontrol veya kısayol) — o video yeni bir içerik yükleyene kadar senin hızını korur. O sitede hatırlanan son hız geçmez, böylece ilk manuel ayardan sonra takılıp kalmak yerine her video için yeniden karar verir.
+- Video üzerindeki hız rozeti, videonun üstünde bir diyalog, menü veya modal arka planı açıkken üstünde durmak yerine kenara çekilir.
+- Kısayollar Latin olmayan klavye düzenlerinde de çalışır (Rusça, Arapça, Yunanca, Hintçe, Japonca, Korece, Çince...) — fiziksel tuşu takip eder, yani `S` yine üzerinde S yazan tuştur.
 
 ## Kişiselleştirme
 

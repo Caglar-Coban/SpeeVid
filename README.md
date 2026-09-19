@@ -23,7 +23,9 @@ A browser extension (Chrome and Firefox) for controlling video playback speed on
 - Optional "time saved" counter (settings screen) tracks how much real time you've saved by watching faster than 1x, with a reset button.
 - Optional "aggressive speed lock" (off by default, settings screen) for sites whose own player keeps clamping the speed back down (some course/LMS platforms) — forces the chosen speed at the page level instead of just re-fighting it on every reset.
 - Theme is customizable: Auto (follows the browser/OS), Light, or Dark, plus a fully custom accent color (a few presets or any color via the picker) — applied to both the popup and the on-video floating control.
-- Optional "auto speed by video length" (off by default, settings screen): videos at or past a configurable length threshold (default 20 min) start at a configurable "long" speed (default 2x), shorter ones at a configurable "short" speed (default 1x). Only a pin or "apply to all tabs" overrides it — the site's last remembered speed does not, so it re-decides per video instead of getting stuck after the first manual adjustment.
+- Optional "auto speed by video length" (off by default, settings screen): videos at or past a configurable length threshold (default 20 min) start at a configurable "long" speed (default 2x), shorter ones at a configurable "short" speed (default 1x). A pin or "apply to all tabs" overrides it, and so does a speed you set by hand (popup, on-video control or shortcut) — that video keeps your speed until it loads something new. The site's last remembered speed does not override it, so it re-decides per video instead of getting stuck after the first manual adjustment.
+- The on-video speed badge steps aside while a dialog, menu or modal backdrop is open over the video, instead of floating on top of it.
+- Shortcuts also work on non-Latin keyboard layouts (Russian, Arabic, Greek, Hindi, Japanese, Korean, Chinese...) — they follow the physical key, so `S` is still the key labelled S.
 
 ## Personalization
 

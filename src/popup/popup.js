@@ -316,7 +316,7 @@
   document.addEventListener('keydown', function (event) {
     if (listeningAction === null) return;
     event.preventDefault();
-    var key = event.key.toLowerCase();
+    var key = SpeeVid.storageHelpers.bindingKeyFromEvent(event);
     if (BLOCKED_KEYS.indexOf(key) !== -1) return;
 
     var action = listeningAction;

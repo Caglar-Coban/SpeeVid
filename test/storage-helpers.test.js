@@ -4,6 +4,8 @@ const {
   buildSiteSpeedKey,
   mergeSettings,
   mergeKeyBindings,
+  matchesKeyBinding,
+  bindingKeyFromEvent,
   mergeLanguage,
   mergeCustomSpeed,
   mergeSyncAllTabs,
@@ -95,6 +97,53 @@ test('mergeKeyBindings preserves custom bindings', () => {
     mergeKeyBindings({ increase: 'w', decrease: 'x', reset: 'arrowup', custom: 'z' }),
     { increase: 'w', decrease: 'x', reset: 'arrowup', custom: 'z' }
   );
+});
+
+test('matchesKeyBinding matches the typed key case-insensitively', () => {
+  assert.equal(matchesKeyBinding({ key: 'S', code: 'KeyS' }, 's'), true);
+  assert.equal(matchesKeyBinding({ key: 's', code: 'KeyS' }, 'd'), false);
+  assert.equal(matchesKeyBinding({ key: 'ArrowUp', code: 'ArrowUp' }, 'arrowup'), true);
+});
+
+test('matchesKeyBinding falls back to the physical Latin key on non-Latin layouts', () => {
+  // Russian layout: the physical S key types 'ы'.
+  assert.equal(matchesKeyBinding({ key: 'ы', code: 'KeyS' }, 's'), true);
+  // Arabic, Greek, Hindi, Japanese kana, Korean hangul.
+  assert.equal(matchesKeyBinding({ key: 'س', code: 'KeyS' }, 's'), true);
+  assert.equal(matchesKeyBinding({ key: 'σ', code: 'KeyS' }, 's'), true);
+  assert.equal(matchesKeyBinding({ key: 'ग', code: 'KeyS' }, 's'), true);
+  assert.equal(matchesKeyBinding({ key: 'ㄴ', code: 'KeyS' }, 's'), true);
+  // An IME that is composing reports 'Process' / 'Unidentified'.
+  assert.equal(matchesKeyBinding({ key: 'Process', code: 'KeyS' }, 's'), true);
+  assert.equal(matchesKeyBinding({ key: 'Unidentified', code: 'KeyS' }, 's'), true);
+});
+
+test('matchesKeyBinding still honours a binding stored as the non-Latin character itself', () => {
+  assert.equal(matchesKeyBinding({ key: 'ы', code: 'KeyS' }, 'ы'), true);
+});
+
+test('matchesKeyBinding does NOT remap Latin-script layouts (Dvorak, Turkish, AZERTY)', () => {
+  // Dvorak: physical KeyS types 'o' — that is what the user sees, so 's' must not fire.
+  assert.equal(matchesKeyBinding({ key: 'o', code: 'KeyS' }, 's'), false);
+  // Turkish: physical KeyI types 'ı' (dotless), still Latin script.
+  assert.equal(matchesKeyBinding({ key: 'ı', code: 'KeyI' }, 'i'), false);
+});
+
+test('matchesKeyBinding ignores non-letter physical keys and missing fields', () => {
+  assert.equal(matchesKeyBinding({ key: 'ы', code: 'Digit1' }, 's'), false);
+  assert.equal(matchesKeyBinding({ key: 'ы' }, 's'), false);
+  assert.equal(matchesKeyBinding({}, 's'), false);
+});
+
+test('bindingKeyFromEvent records the physical Latin letter on non-Latin layouts', () => {
+  assert.equal(bindingKeyFromEvent({ key: 'ы', code: 'KeyS' }), 's');
+  assert.equal(bindingKeyFromEvent({ key: 'Process', code: 'KeyD' }), 'd');
+});
+
+test('bindingKeyFromEvent otherwise records the lowercased typed key', () => {
+  assert.equal(bindingKeyFromEvent({ key: 'W', code: 'KeyW' }), 'w');
+  assert.equal(bindingKeyFromEvent({ key: 'ArrowUp', code: 'ArrowUp' }), 'arrowup');
+  assert.equal(bindingKeyFromEvent({ key: 'ı', code: 'KeyI' }), 'ı');
 });
 
 test('mergeLanguage defaults to English for missing or unknown codes', () => {
