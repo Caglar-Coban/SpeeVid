@@ -78,6 +78,7 @@
     autoSpeedThresholdMinutes: 20,
     autoSpeedShortSpeed: 1,
     autoSpeedLongSpeed: 2,
+    controlAudio: false,
     // Whether this exact site has a *pinned* speed (a deliberate, visible,
     // removable choice in settings) — computed once at init() from storage,
     // not re-derived live. Only a pin outranks auto speed-by-duration.
@@ -105,19 +106,42 @@
   // Closed shadow roots (`attachShadow({ mode: 'closed' })`) are invisible to
   // any script outside the component that made them, including this one —
   // there's no way to reach into those from a content script.
-  function collectVideos(root, results) {
-    var videos = root.querySelectorAll('video');
+  function collectVideos(root, results, selector) {
+    var videos = root.querySelectorAll(selector);
     for (var i = 0; i < videos.length; i += 1) results.push(videos[i]);
     var all = root.querySelectorAll('*');
     for (var i = 0; i < all.length; i += 1) {
-      if (all[i].shadowRoot) collectVideos(all[i].shadowRoot, results);
+      if (all[i].shadowRoot) collectVideos(all[i].shadowRoot, results, selector);
     }
   }
 
+  // <video> elements only — what gets a floating badge. Audio never does:
+  // it has no picture to sit over, and a hidden <audio> has no position.
   function scanVideos() {
     var results = [];
-    collectVideos(document, results);
+    collectVideos(document, results, 'video');
     return results;
+  }
+
+  // What the speed is applied to: every <video>, plus <audio> when the user
+  // opted in ("control audio", off by default because sites also use hidden
+  // <audio> elements for notification/effect sounds that shouldn't speed up).
+  function mediaSelector() {
+    return state.controlAudio ? 'video, audio' : 'video';
+  }
+
+  function scanMedia() {
+    var results = [];
+    collectVideos(document, results, mediaSelector());
+    return results;
+  }
+
+  // Filters an already-scanned media list down to <video> so callers that
+  // need both lists still only pay for one walk of the page.
+  function onlyVideos(media) {
+    return media.filter(function (el) {
+      return el.tagName === 'VIDEO';
+    });
   }
 
   // Some sites (Netflix historically did this) run their own `ratechange`
@@ -163,7 +187,7 @@
   // next piece of content is judged on its own length again. Videos that
   // left the DOM are dropped so a finished video can't pin the override.
   function markManualOverride(videos) {
-    (videos || scanVideos()).forEach(function (video) {
+    (videos || scanMedia()).forEach(function (video) {
       manualOverrideVideos.add(video);
     });
   }
@@ -201,11 +225,20 @@
   // into an existing <video> element (e.g. autoplay/next-episode on an SPA,
   // which reuses the element so our mutation observer never fires). Watching
   // these events lets us reassert our speed instead of silently losing it.
+  // Listeners stay attached to an <audio> after the user turns "control
+  // audio" off (there's no cheap way to unbind them by element), so every
+  // handler checks this first — otherwise 'ratechange' would immediately
+  // re-apply our speed to the audio we just handed back.
+  function isControlled(media) {
+    return media.tagName !== 'AUDIO' || state.controlAudio;
+  }
+
   function bindVideo(video) {
     if (boundVideos.has(video)) return;
     boundVideos.add(video);
     ['loadedmetadata', 'durationchange', 'playing', 'ratechange'].forEach(function (evt) {
       video.addEventListener(evt, function () {
+        if (!isControlled(video)) return;
         // Some players (adaptive/streaming ones especially) report an
         // unusable duration (Infinity/NaN) at 'loadedmetadata' and only
         // update it later via a separate 'durationchange' — without also
@@ -225,7 +258,7 @@
       manualOverrideVideos.delete(video);
     });
     video.addEventListener('timeupdate', function () {
-      trackTimeSaved(video);
+      if (isControlled(video)) trackTimeSaved(video);
     });
     // The page's own script may have already loaded this video's metadata
     // before we got here, in which case 'loadedmetadata' already fired and
@@ -237,7 +270,7 @@
   // paying for another full-DOM walk (see scanVideos()).
   function applySpeedToAllVideos(videos) {
     if (state.disabled) return;
-    (videos || scanVideos()).forEach(function (video) {
+    (videos || scanMedia()).forEach(function (video) {
       bindVideo(video);
       video.playbackRate = state.speed;
       applyPitchPreference(video);
@@ -338,7 +371,7 @@
       persistTimer = null;
       // Never persist a speed for a frame that has no video of its own
       // (e.g. an unrelated ad iframe that received the SET_SPEED broadcast).
-      if (scanVideos().length === 0) return;
+      if (scanMedia().length === 0) return;
       // Only the top frame writes to storage. SET_SPEED is broadcast to
       // every frame so an embedded player (e.g. a YouTube iframe on someone
       // else's site) still responds, but persisting from that frame would
@@ -355,7 +388,7 @@
     state.speed = clampSpeed(rawSpeed);
     // One scan shared by everything below — dragging the overlay slider
     // calls this many times a second.
-    var videos = scanVideos();
+    var videos = scanMedia();
     applySpeedToAllVideos(videos);
     broadcastLockedRate();
     updateAllOverlays();
@@ -373,7 +406,7 @@
     if (message.type === MESSAGE_TYPES.GET_STATE) {
       sendResponse({
         speed: state.speed,
-        videoCount: scanVideos().length,
+        videoCount: scanMedia().length,
         floatingEnabled: state.floatingEnabled,
         disabled: state.disabled,
       });
@@ -389,11 +422,12 @@
 
   function nodeListHasVideo(nodes) {
     if (!nodes) return false;
+    var selector = mediaSelector();
     for (var i = 0; i < nodes.length; i += 1) {
       var node = nodes[i];
       if (!node || node.nodeType !== 1) continue;
-      if (node.tagName === 'VIDEO') return true;
-      if (node.querySelector && node.querySelector('video')) return true;
+      if (node.tagName === 'VIDEO' || (state.controlAudio && node.tagName === 'AUDIO')) return true;
+      if (node.querySelector && node.querySelector(selector)) return true;
     }
     return false;
   }
@@ -424,9 +458,9 @@
       // The observer only watches childList/subtree, so only added/removed
       // nodes can ever change the set of videos. Skip everything else.
       if (!mutationsTouchVideo(mutations)) return;
-      var videos = scanVideos();
-      applySpeedToAllVideos(videos);
-      syncOverlaysWithVideos(videos);
+      var media = scanMedia();
+      applySpeedToAllVideos(media);
+      syncOverlaysWithVideos(onlyVideos(media));
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
   }
@@ -466,7 +500,7 @@
     if (isEditableTarget(getRealTarget(event))) return;
 
     // Work out which action (if any) this key is bound to BEFORE looking for
-    // videos: scanVideos() walks every element on the page, and this handler
+    // videos: scanMedia() walks every element on the page, and this handler
     // runs for every key press anywhere on every page.
     var bindings = state.keyBindings;
     var action = matchesKeyBinding(event, bindings.increase)
@@ -479,7 +513,7 @@
       ? 'custom'
       : null;
     if (action === null) return;
-    if (scanVideos().length === 0) return;
+    if (scanMedia().length === 0) return;
 
     if (action === 'increase') {
       setSpeed(state.speed + 0.1);
@@ -901,6 +935,7 @@
         state.autoSpeedThresholdMinutes = settings.autoSpeedThresholdMinutes;
         state.autoSpeedShortSpeed = settings.autoSpeedShortSpeed;
         state.autoSpeedLongSpeed = settings.autoSpeedLongSpeed;
+        state.controlAudio = settings.controlAudio;
         // Only a pin blocks auto speed-by-duration going forward (see
         // maybeAutoSetSpeedByDuration()) — the initial state.speed guess
         // below still prefers the remembered site speed over a flat 1x,
@@ -962,7 +997,7 @@
           }
           if (typeof changed.preservePitch === 'boolean') {
             state.preservePitch = changed.preservePitch;
-            scanVideos().forEach(applyPitchPreference);
+            scanMedia().forEach(applyPitchPreference);
           }
           if (typeof changed.aggressiveMode === 'boolean') {
             if (state.aggressiveMode && !changed.aggressiveMode) {
@@ -1007,13 +1042,27 @@
             // Re-evaluate immediately for whatever's already loaded, rather
             // than waiting for the next 'loadedmetadata' (which may never
             // come again for an already-playing video).
-            if (state.autoSpeedByDuration) scanVideos().forEach(maybeAutoSetSpeedByDuration);
+            if (state.autoSpeedByDuration) scanMedia().forEach(maybeAutoSetSpeedByDuration);
+          }
+          if (typeof changed.controlAudio === 'boolean') {
+            state.controlAudio = changed.controlAudio;
+            if (state.controlAudio) {
+              // Reach the <audio> elements that were being ignored a moment ago.
+              applySpeedToAllVideos();
+            } else {
+              // Give back the ones we were driving; <video> is unaffected.
+              var audios = [];
+              collectVideos(document, audios, 'audio');
+              audios.forEach(function (audio) {
+                audio.playbackRate = 1;
+              });
+            }
           }
           if (Array.isArray(changed.disabledSites)) {
             var wasDisabled = state.disabled;
             state.disabled = hostMatchesAny(HOSTNAME, changed.disabledSites);
             if (state.disabled && !wasDisabled) {
-              scanVideos().forEach(function (video) {
+              scanMedia().forEach(function (video) {
                 video.playbackRate = 1;
               });
               destroyAllOverlays();
@@ -1029,7 +1078,7 @@
 
         onGlobalSpeedChanged(function (newSpeed) {
           if (!state.syncAllTabs) return;
-          if (scanVideos().length === 0) return;
+          if (scanMedia().length === 0) return;
           setSpeed(newSpeed, false);
         });
 

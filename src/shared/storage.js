@@ -24,6 +24,7 @@
     autoSpeedThresholdMinutes: helpers.DEFAULT_AUTO_SPEED_THRESHOLD_MINUTES,
     autoSpeedShortSpeed: helpers.DEFAULT_AUTO_SPEED_SHORT_SPEED,
     autoSpeedLongSpeed: helpers.DEFAULT_AUTO_SPEED_LONG_SPEED,
+    controlAudio: false,
   };
 
   function safeSpeed(value, fallback) {

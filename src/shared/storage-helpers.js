@@ -141,6 +141,12 @@
     return typeof stored === 'boolean' ? stored : true;
   }
 
+  // Off by default: sites also use hidden <audio> elements for notification
+  // and effect sounds, which shouldn't be sped up just because a video is.
+  function mergeControlAudio(stored) {
+    return typeof stored === 'boolean' ? stored : false;
+  }
+
   function mergeAutoSpeedByDuration(stored) {
     return typeof stored === 'boolean' ? stored : false;
   }
@@ -188,6 +194,7 @@
       autoSpeedThresholdMinutes: mergeAutoSpeedThresholdMinutes(stored.autoSpeedThresholdMinutes),
       autoSpeedShortSpeed: mergeAutoSpeedShortSpeed(stored.autoSpeedShortSpeed),
       autoSpeedLongSpeed: mergeAutoSpeedLongSpeed(stored.autoSpeedLongSpeed),
+      controlAudio: mergeControlAudio(stored.controlAudio),
     };
   }
 
@@ -228,6 +235,7 @@
     mergeAutoSpeedThresholdMinutes: mergeAutoSpeedThresholdMinutes,
     mergeAutoSpeedShortSpeed: mergeAutoSpeedShortSpeed,
     mergeAutoSpeedLongSpeed: mergeAutoSpeedLongSpeed,
+    mergeControlAudio: mergeControlAudio,
     DEFAULT_AUTO_SPEED_THRESHOLD_MINUTES: DEFAULT_AUTO_SPEED_THRESHOLD_MINUTES,
     AUTO_SPEED_THRESHOLD_MIN_MINUTES: AUTO_SPEED_THRESHOLD_MIN_MINUTES,
     AUTO_SPEED_THRESHOLD_MAX_MINUTES: AUTO_SPEED_THRESHOLD_MAX_MINUTES,

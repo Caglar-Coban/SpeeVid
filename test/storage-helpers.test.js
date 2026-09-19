@@ -21,6 +21,7 @@ const {
   mergeAutoSpeedThresholdMinutes,
   mergeAutoSpeedShortSpeed,
   mergeAutoSpeedLongSpeed,
+  mergeControlAudio,
   isValidBackup,
   isValidSitePattern,
   hostMatchesPattern,
@@ -58,6 +59,7 @@ test('mergeSettings applies defaults for missing keys', () => {
     autoSpeedThresholdMinutes: 20,
     autoSpeedShortSpeed: 1,
     autoSpeedLongSpeed: 2,
+    controlAudio: false,
   });
 });
 
@@ -83,6 +85,7 @@ test('mergeSettings preserves explicit false values', () => {
       autoSpeedThresholdMinutes: 20,
       autoSpeedShortSpeed: 1,
       autoSpeedLongSpeed: 2,
+      controlAudio: false,
     }
   );
 });
@@ -356,4 +359,15 @@ test('isValidBackup rejects malformed or unrelated files', () => {
   assert.equal(isValidBackup({ version: 1, settings: null }), false);
   assert.equal(isValidBackup({ version: 1, settings: [] }), false);
   assert.equal(isValidBackup({ version: '1', settings: {} }), false); // wrong type
+});
+
+test('mergeControlAudio defaults to false for missing/invalid values', () => {
+  assert.equal(mergeControlAudio(undefined), false);
+  assert.equal(mergeControlAudio('yes'), false);
+  assert.equal(mergeControlAudio(1), false);
+});
+
+test('mergeControlAudio preserves an explicit boolean', () => {
+  assert.equal(mergeControlAudio(true), true);
+  assert.equal(mergeControlAudio(false), false);
 });

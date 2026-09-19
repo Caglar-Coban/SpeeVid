@@ -45,6 +45,7 @@
   var preservePitchToggle = document.getElementById('preservePitchToggle');
   var aggressiveModeToggle = document.getElementById('aggressiveModeToggle');
   var trackTimeSavedToggle = document.getElementById('trackTimeSavedToggle');
+  var controlAudioToggle = document.getElementById('controlAudioToggle');
   var timeSavedValueEl = document.getElementById('timeSavedValue');
   var resetTimeSavedBtn = document.getElementById('resetTimeSavedBtn');
   var customSpeedInput = document.getElementById('customSpeedInput');
@@ -235,6 +236,10 @@
 
   trackTimeSavedToggle.addEventListener('change', function (event) {
     setSetting('trackTimeSaved', event.target.checked);
+  });
+
+  controlAudioToggle.addEventListener('change', function (event) {
+    setSetting('controlAudio', event.target.checked);
   });
 
   customSpeedInput.addEventListener('change', function (event) {
@@ -602,6 +607,7 @@
     preservePitchToggle.checked = settings.preservePitch;
     aggressiveModeToggle.checked = settings.aggressiveMode;
     trackTimeSavedToggle.checked = settings.trackTimeSaved;
+    controlAudioToggle.checked = settings.controlAudio;
     applyTheme(settings.theme);
     applyAccentColor(settings.accentColor);
     autoSpeedByDurationToggle.checked = settings.autoSpeedByDuration;
