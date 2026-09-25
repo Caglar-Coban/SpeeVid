@@ -47,6 +47,30 @@
     });
   }
 
+  // Every read-modify-write of a shared local map (siteSpeeds, pinnedSpeeds,
+  // timeSavedSeconds) goes through this one chain, so two quick updates from
+  // the same page or popup can't both read the same snapshot and have the
+  // second write silently drop the first's change (e.g. removing two pinned
+  // sites in a row, or dragging the popup slider with "pin" on). This only
+  // orders writes within one extension context; separate tabs still write
+  // independently, which is acceptable for these per-site values.
+  var writeChain = Promise.resolve();
+
+  function queueUpdate(areaKey, defaults, update) {
+    var run = function () {
+      return new Promise(function (resolve) {
+        chrome.storage.local.get(defaults, function (result) {
+          var patch = {};
+          patch[areaKey] = update(result || {});
+          chrome.storage.local.set(patch, resolve);
+        });
+      });
+    };
+    var next = writeChain.then(run, run);
+    writeChain = next;
+    return next;
+  }
+
   function toSiteSpeedsObject(value) {
     return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   }
@@ -67,12 +91,10 @@
 
   function setSiteSpeed(hostname, speed) {
     var key = helpers.buildSiteSpeedKey(hostname);
-    return new Promise(function (resolve) {
-      chrome.storage.local.get({ siteSpeeds: {} }, function (result) {
-        var siteSpeeds = Object.assign({}, toSiteSpeedsObject(result && result.siteSpeeds));
-        siteSpeeds[key] = speed;
-        chrome.storage.local.set({ siteSpeeds: siteSpeeds }, resolve);
-      });
+    return queueUpdate('siteSpeeds', { siteSpeeds: {} }, function (result) {
+      var siteSpeeds = Object.assign({}, toSiteSpeedsObject(result.siteSpeeds));
+      siteSpeeds[key] = speed;
+      return siteSpeeds;
     });
   }
 
@@ -89,16 +111,7 @@
   // used there). It takes priority over the remembered speed on page load,
   // but ordinary in-session adjustments don't touch it unless the popup's
   // "pin" toggle is checked.
-  //
-  // KNOWN GAP: setPinnedSpeed/removePinnedSpeed below (and setSiteSpeed
-  // above) do an unguarded read-modify-write on the shared map. Two calls
-  // in close succession — e.g. removing two different pinned-site rows in
-  // quick succession from the popup's list — can both read the same
-  // pre-write snapshot, and whichever `set()` lands second silently
-  // overwrites the first's change. Low likelihood (needs two writes within
-  // the same short async round trip) and easy to work around by waiting
-  // for the list to re-render between clicks, but a real race; fixing it
-  // properly needs a write queue/mutex around this map, not implemented.
+  // Writes to the map are serialized through queueUpdate() (see above).
   function getPinnedSpeed(hostname) {
     var key = helpers.buildSiteSpeedKey(hostname);
     return new Promise(function (resolve) {
@@ -111,23 +124,19 @@
 
   function setPinnedSpeed(hostname, speed) {
     var key = helpers.buildSiteSpeedKey(hostname);
-    return new Promise(function (resolve) {
-      chrome.storage.local.get({ pinnedSpeeds: {} }, function (result) {
-        var pinnedSpeeds = Object.assign({}, toSiteSpeedsObject(result && result.pinnedSpeeds));
-        pinnedSpeeds[key] = speed;
-        chrome.storage.local.set({ pinnedSpeeds: pinnedSpeeds }, resolve);
-      });
+    return queueUpdate('pinnedSpeeds', { pinnedSpeeds: {} }, function (result) {
+      var pinnedSpeeds = Object.assign({}, toSiteSpeedsObject(result.pinnedSpeeds));
+      pinnedSpeeds[key] = speed;
+      return pinnedSpeeds;
     });
   }
 
   function removePinnedSpeed(hostname) {
     var key = helpers.buildSiteSpeedKey(hostname);
-    return new Promise(function (resolve) {
-      chrome.storage.local.get({ pinnedSpeeds: {} }, function (result) {
-        var pinnedSpeeds = Object.assign({}, toSiteSpeedsObject(result && result.pinnedSpeeds));
-        delete pinnedSpeeds[key];
-        chrome.storage.local.set({ pinnedSpeeds: pinnedSpeeds }, resolve);
-      });
+    return queueUpdate('pinnedSpeeds', { pinnedSpeeds: {} }, function (result) {
+      var pinnedSpeeds = Object.assign({}, toSiteSpeedsObject(result.pinnedSpeeds));
+      delete pinnedSpeeds[key];
+      return pinnedSpeeds;
     });
   }
 
@@ -205,11 +214,9 @@
 
   function addTimeSaved(deltaSeconds) {
     if (!(deltaSeconds > 0)) return Promise.resolve();
-    return new Promise(function (resolve) {
-      chrome.storage.local.get({ timeSavedSeconds: 0 }, function (result) {
-        var current = typeof result.timeSavedSeconds === 'number' ? result.timeSavedSeconds : 0;
-        chrome.storage.local.set({ timeSavedSeconds: current + deltaSeconds }, resolve);
-      });
+    return queueUpdate('timeSavedSeconds', { timeSavedSeconds: 0 }, function (result) {
+      var current = typeof result.timeSavedSeconds === 'number' ? result.timeSavedSeconds : 0;
+      return current + deltaSeconds;
     });
   }
 

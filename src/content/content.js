@@ -20,9 +20,16 @@
   var MESSAGE_TYPES = SpeeVid.messages.MESSAGE_TYPES;
 
   var HOSTNAME = location.hostname || 'local-file';
-  // Only the top frame should speak for the tab's toolbar badge — otherwise
-  // an unrelated ad iframe with its own <video> could overwrite it.
   var IS_TOP_FRAME = window.top === window.self;
+  // The host of the page the user is actually on (the tab's top frame).
+  // Every per-site setting — disable list, remembered and pinned speeds — is
+  // keyed on this, not on HOSTNAME: on sites whose player lives in an iframe
+  // from another domain, the frame that owns the <video> would otherwise
+  // look everything up under the player's domain, so disabling the site did
+  // nothing to the video and its speed was never remembered. A cross-origin
+  // iframe can't read window.top.location, so it asks the background script
+  // (see resolvePageHost()); until that answers it falls back to its own.
+  var PAGE_HOST = HOSTNAME;
 
   var formatSpeed = SpeeVid.speedUtils.formatSpeed;
   var PRESETS = SpeeVid.speedUtils.PRESETS;
@@ -49,7 +56,10 @@
   var rateFightState = new WeakMap();
   var RATE_FIGHT_WINDOW_MS = 2000;
   var RATE_FIGHT_LIMIT = 6;
-  var lastTimeUpdateAt = new WeakMap();
+  // Frame-wide, not per video: two videos playing at once (a muted hover
+  // preview next to the main one) used to each add their own elapsed time,
+  // counting the same real seconds twice.
+  var lastTimeUpdateAt = null;
   var pendingTimeSaved = 0;
   var TIME_SAVED_FLUSH_MS = 10000;
   var timeSavedFlushTimer = null;
@@ -90,8 +100,13 @@
     hasPinnedSpeed: false,
   };
 
+  // The top frame always speaks for the tab's toolbar badge. An iframe only
+  // does when it has media of its own — that's the embedded-player case,
+  // where the top frame has no video. Both derive their speed and disabled
+  // state from PAGE_HOST, so they agree; an unrelated iframe without media
+  // stays silent.
   function sendBadgeUpdate() {
-    if (!IS_TOP_FRAME) return;
+    if (!IS_TOP_FRAME && scanMedia().length === 0) return;
     var text = !state.disabled && state.speed !== 1 ? formatSpeed(state.speed).replace('x', '') : '';
     // Carries the user's chosen accent color along so the badge matches the
     // rest of the theming instead of staying hardcoded purple in the
@@ -238,6 +253,10 @@
     boundVideos.add(video);
     ['loadedmetadata', 'durationchange', 'playing', 'ratechange'].forEach(function (evt) {
       video.addEventListener(evt, function () {
+        // Listeners outlive a live "disable on this site": without this,
+        // the playbackRate = 1 reset on disable fires 'ratechange' and this
+        // handler immediately puts our speed straight back.
+        if (state.disabled) return;
         if (!isControlled(video)) return;
         // Some players (adaptive/streaming ones especially) report an
         // unusable duration (Infinity/NaN) at 'loadedmetadata' and only
@@ -289,9 +308,9 @@
   // a long pause can't be misread as watching a huge chunk at high speed.
   function trackTimeSaved(video) {
     var now = Date.now();
-    var last = lastTimeUpdateAt.get(video);
-    lastTimeUpdateAt.set(video, now);
-    if (last === undefined) return;
+    var last = lastTimeUpdateAt;
+    lastTimeUpdateAt = now;
+    if (last === null) return;
     if (!state.trackTimeSaved || state.disabled || video.paused) return;
     var elapsedSec = (now - last) / 1000;
     if (elapsedSec <= 0 || elapsedSec > 2) return;
@@ -372,13 +391,11 @@
       // Never persist a speed for a frame that has no video of its own
       // (e.g. an unrelated ad iframe that received the SET_SPEED broadcast).
       if (scanMedia().length === 0) return;
-      // Only the top frame writes to storage. SET_SPEED is broadcast to
-      // every frame so an embedded player (e.g. a YouTube iframe on someone
-      // else's site) still responds, but persisting from that frame would
-      // silently save a site speed under the embed's own hostname
-      // (youtube.com) instead of the page the user actually adjusted.
-      if (!IS_TOP_FRAME) return;
-      setSiteSpeed(HOSTNAME, state.speed);
+      // Saved under PAGE_HOST, so an embedded player (a YouTube/Vimeo iframe
+      // on someone else's site) remembers the speed for the page the user is
+      // on, not for the embed's own domain. Only the frame that actually has
+      // media writes; on an embed site that's the iframe, not the top frame.
+      setSiteSpeed(PAGE_HOST, state.speed);
       if (state.syncAllTabs) setGlobalSpeed(state.speed);
     }, PERSIST_DEBOUNCE_MS);
   }
@@ -403,7 +420,15 @@
   }
 
   function handleMessage(message, _sender, sendResponse) {
+    if (message.type === MESSAGE_TYPES.GET_FRAME_HOST) {
+      if (IS_TOP_FRAME) sendResponse({ host: HOSTNAME });
+      return false;
+    }
     if (message.type === MESSAGE_TYPES.GET_STATE) {
+      // The popup's second, untargeted ask ("does any frame have media?")
+      // is answered only by frames that do; with every other frame staying
+      // silent, the first frame that answers is one that has a player.
+      if (message.onlyWithMedia && scanMedia().length === 0) return false;
       sendResponse({
         speed: state.speed,
         videoCount: scanMedia().length,
@@ -514,6 +539,11 @@
       : null;
     if (action === null) return;
     if (scanMedia().length === 0) return;
+    // The key did something for us, so don't also let the page act on it
+    // (a user who binds Space or an arrow key would otherwise get both our
+    // speed change and the player's own play/pause or seek).
+    event.preventDefault();
+    event.stopPropagation();
 
     if (action === 'increase') {
       setSpeed(state.speed + 0.1);
@@ -910,8 +940,33 @@
     ensureLoopRunning();
   }
 
+  function isDisabledHere(disabledSites) {
+    // The page's own host is what the popup's "disable on this site" writes.
+    // The frame's own host still counts too, so a rule for a player domain
+    // (e.g. "youtube.com") keeps covering its embeds on other sites.
+    return hostMatchesAny(PAGE_HOST, disabledSites) || hostMatchesAny(HOSTNAME, disabledSites);
+  }
+
+  function resolvePageHost() {
+    if (IS_TOP_FRAME) return Promise.resolve(HOSTNAME);
+    return new Promise(function (resolve) {
+      try {
+        chrome.runtime.sendMessage({ type: MESSAGE_TYPES.GET_PAGE_HOST }, function (response) {
+          void chrome.runtime.lastError;
+          resolve(response && typeof response.host === 'string' && response.host ? response.host : HOSTNAME);
+        });
+      } catch (err) {
+        resolve(HOSTNAME);
+      }
+    });
+  }
+
   function init() {
-    Promise.all([getSettings(), getSiteSpeed(HOSTNAME), getGlobalSpeed(), getPinnedSpeed(HOSTNAME)])
+    resolvePageHost()
+      .then(function (pageHost) {
+        PAGE_HOST = pageHost;
+        return Promise.all([getSettings(), getSiteSpeed(PAGE_HOST), getGlobalSpeed(), getPinnedSpeed(PAGE_HOST)]);
+      })
       .then(function (results) {
         var settings = results[0];
         var siteSpeed = results[1];
@@ -923,7 +978,7 @@
         state.keyBindings = settings.keyBindings;
         state.customSpeed = settings.customSpeed;
         state.syncAllTabs = settings.syncAllTabs;
-        state.disabled = hostMatchesAny(HOSTNAME, settings.disabledSites);
+        state.disabled = isDisabledHere(settings.disabledSites);
         state.overlayPosition = settings.overlayPosition;
         state.overlayAutoHide = settings.overlayAutoHide;
         state.preservePitch = settings.preservePitch;
@@ -1060,7 +1115,7 @@
           }
           if (Array.isArray(changed.disabledSites)) {
             var wasDisabled = state.disabled;
-            state.disabled = hostMatchesAny(HOSTNAME, changed.disabledSites);
+            state.disabled = isDisabledHere(changed.disabledSites);
             if (state.disabled && !wasDisabled) {
               scanMedia().forEach(function (video) {
                 video.playbackRate = 1;
@@ -1089,7 +1144,7 @@
         // change — state.hasPinnedSpeed would stay stuck at whatever it was
         // when init() ran.
         onPinnedSpeedChanged(function (pinnedSpeeds) {
-          var key = buildSiteSpeedKey(HOSTNAME);
+          var key = buildSiteSpeedKey(PAGE_HOST);
           state.hasPinnedSpeed = Object.prototype.hasOwnProperty.call(pinnedSpeeds, key);
         });
       })

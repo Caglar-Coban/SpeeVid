@@ -8,6 +8,7 @@
   var getSettings = SpeeVid.storage.getSettings;
   var setSetting = SpeeVid.storage.setSetting;
   var hostMatchesAny = SpeeVid.storageHelpers.hostMatchesAny;
+  var hostMatchesPattern = SpeeVid.storageHelpers.hostMatchesPattern;
   var MESSAGE_TYPES = SpeeVid.messages.MESSAGE_TYPES;
   var i18n = SpeeVid.i18n;
   var theme = SpeeVid.theme;
@@ -51,6 +52,7 @@
   var customSpeedInput = document.getElementById('customSpeedInput');
   var siteDisableRow = document.getElementById('siteDisableRow');
   var siteDisableToggle = document.getElementById('siteDisableToggle');
+  var siteRuleNotice = document.getElementById('siteRuleNotice');
   var disabledSiteInput = document.getElementById('disabledSiteInput');
   var addDisabledSiteBtn = document.getElementById('addDisabledSiteBtn');
   var disabledSitesList = document.getElementById('disabledSitesList');
@@ -221,7 +223,15 @@
     setSetting('accentColor', target.dataset.color);
   });
 
+  // Preview live while the picker is being dragged, but only save once the
+  // color is chosen: saving on every 'input' tick blew through
+  // storage.sync's write quota (~120/minute) and made every open tab rebuild
+  // its overlay on each tick.
   accentColorInput.addEventListener('input', function (event) {
+    applyAccentColor(event.target.value);
+  });
+
+  accentColorInput.addEventListener('change', function (event) {
     applyAccentColor(event.target.value);
     setSetting('accentColor', event.target.value);
   });
@@ -322,10 +332,20 @@
     if (listeningAction === null) return;
     event.preventDefault();
     var key = SpeeVid.storageHelpers.bindingKeyFromEvent(event);
+    if (key === 'escape') {
+      stopListening();
+      return;
+    }
     if (BLOCKED_KEYS.indexOf(key) !== -1) return;
 
     var action = listeningAction;
     var updated = Object.assign({}, keyBindings);
+    // Two actions on one key left the second one dead (content.js checks
+    // them in a fixed order), so the action that had this key takes over
+    // the one being rebound's old key instead.
+    Object.keys(updated).forEach(function (other) {
+      if (other !== action && updated[other] === key) updated[other] = keyBindings[action];
+    });
     updated[action] = key;
     keyBindings = updated;
     stopListening();
@@ -387,22 +407,43 @@
         showSection(reloadSection);
         return;
       }
-      if (response.disabled) {
+      // Decided from the popup's own copy of the list, not response.disabled:
+      // right after the toggle changes, the page hasn't necessarily received
+      // the storage change yet and still answers with the old state — which
+      // left the popup saying "disabled" after the user had just re-enabled.
+      if (isCurrentSiteDisabled()) {
         showSection(disabledSection);
         return;
       }
-      if (response.videoCount === 0) {
-        showSection(emptySection);
+      if (response.videoCount > 0) {
+        showVideoControls(response.speed);
         return;
       }
-      showSection(videoSection);
-      renderSpeed(response.speed);
-      if (currentHostname) {
-        SpeeVid.storage.getPinnedSpeed(currentHostname).then(function (pinned) {
-          pinSpeedToggle.checked = pinned !== null;
-        });
-      }
+      // The top frame has no media, but the player may be an iframe from
+      // another domain (embeds, most streaming sites). Ask every frame; only
+      // one that has media answers.
+      chrome.tabs.sendMessage(activeTabId, { type: MESSAGE_TYPES.GET_STATE, onlyWithMedia: true }, function (frameResponse) {
+        if (chrome.runtime.lastError || !frameResponse) {
+          showSection(emptySection);
+          return;
+        }
+        showVideoControls(frameResponse.speed);
+      });
     });
+  }
+
+  function isCurrentSiteDisabled() {
+    return !!currentHostname && hostMatchesAny(currentHostname, disabledSites);
+  }
+
+  function showVideoControls(speed) {
+    showSection(videoSection);
+    renderSpeed(speed);
+    if (currentHostname) {
+      SpeeVid.storage.getPinnedSpeed(currentHostname).then(function (pinned) {
+        pinSpeedToggle.checked = pinned !== null;
+      });
+    }
   }
 
   reloadBtn.addEventListener('click', function () {
@@ -507,9 +548,10 @@
 
   function updateDisabledSites(updated) {
     disabledSites = updated;
-    setSetting('disabledSites', disabledSites);
+    var saved = setSetting('disabledSites', disabledSites);
     renderDisabledSitesList();
     if (currentHostname) siteDisableToggle.checked = hostMatchesAny(currentHostname, disabledSites);
+    return saved;
   }
 
   function normalizeHostInput(value) {
@@ -527,25 +569,31 @@
 
   siteDisableToggle.addEventListener('change', function (event) {
     if (!currentHostname) return;
-    var updated = disabledSites.slice();
-    // Add/remove only the exact current hostname — the checkbox itself has
-    // no way to know which wildcard pattern the user might have meant if
-    // the page is disabled by one (e.g. "*.example.com" covering
-    // "app.example.com"). If a wildcard is what's actually disabling this
-    // page, unchecking here won't remove it; the checkbox will show checked
-    // again next time it's rendered until that rule is edited in the
-    // disabled-sites list below.
-    var index = updated.indexOf(currentHostname);
-    if (event.target.checked && index === -1) {
-      updated.push(currentHostname);
-    } else if (!event.target.checked && index !== -1) {
-      updated.splice(index, 1);
+    var updated;
+    var removedRules = [];
+    if (event.target.checked) {
+      updated = disabledSites.indexOf(currentHostname) === -1 ? disabledSites.concat([currentHostname]) : disabledSites.slice();
+    } else {
+      // Unticking means "run on this page". When a wildcard such as
+      // "*.example.com" is what disables it, removing only the exact host
+      // changed nothing and the box ticked itself again — the switch looked
+      // broken. So every rule covering this host goes, and the user is told
+      // which wider rule went with it.
+      updated = disabledSites.filter(function (site) {
+        var covers = hostMatchesPattern(currentHostname, site);
+        if (covers && site !== currentHostname) removedRules.push(site);
+        return !covers;
+      });
     }
-    updateDisabledSites(updated);
+    var saved = updateDisabledSites(updated);
+    if (removedRules.length > 0) {
+      siteRuleNotice.textContent = i18n.translate(currentLanguage, 'siteRuleRemoved').replace('{rule}', removedRules.join(', '));
+      flashNotice(siteRuleNotice, 5000);
+    }
     if (event.target.checked) {
       showSection(disabledSection);
     } else {
-      refreshVideoState();
+      saved.then(refreshVideoState);
     }
   });
 
@@ -686,11 +734,26 @@
       document.body.appendChild(link);
       link.click();
       link.remove();
-      URL.revokeObjectURL(url);
+      // Revoking in the same tick can cancel the download before the browser
+      // has read the blob (seen in Firefox).
+      setTimeout(function () {
+        URL.revokeObjectURL(url);
+      }, 1000);
     });
   });
 
+  // Firefox closes the toolbar popup as soon as the file picker opens, and
+  // the chosen file is lost with it. There the import runs from this same
+  // page opened in a normal tab (see IMPORT_TAB_MODE in init()).
+  var IS_FIREFOX = chrome.runtime.getURL('').indexOf('moz-extension://') === 0;
+  var IMPORT_TAB_MODE = location.hash === '#import';
+
   importBtn.addEventListener('click', function () {
+    if (IS_FIREFOX && !IMPORT_TAB_MODE) {
+      chrome.tabs.create({ url: chrome.runtime.getURL('src/popup/popup.html#import') });
+      window.close();
+      return;
+    }
     importFileInput.click();
   });
 
@@ -728,7 +791,17 @@
     populateLanguageOptions();
     applyTranslations(currentLanguage);
 
-    getSettings().then(renderSettingsUI);
+    // refreshVideoState() decides "disabled" from the loaded list, so it
+    // must not run before the settings are in.
+    var settingsReady = getSettings().then(renderSettingsUI);
+
+    if (IMPORT_TAB_MODE) {
+      settingsReady.then(function () {
+        showSection(unsupportedSection);
+        showSection(settingsSection);
+      });
+      return;
+    }
 
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
       var tab = tabs[0];
@@ -748,7 +821,7 @@
         siteDisableToggle.checked = hostMatchesAny(currentHostname, disabledSites);
       }
 
-      refreshVideoState();
+      settingsReady.then(refreshVideoState);
     });
   }
 
